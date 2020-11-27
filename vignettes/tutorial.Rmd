@@ -1,0 +1,39 @@
+---
+title: "tutorial"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+`phinla` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The follwoign code is taken directly from this chapter of Luk J. Harmon's online book (link).
+
+```{r sim_data}
+library(phinla)
+library(phytools)
+
+set.seed(2300)
+## transition matrix for the discrete trait simulation
+Q <- matrix(c(-1, 1, 1, -1), 2, 2)
+## simulated tree
+tree <- pbtree(n = 500, scale = 1)
+## simulate discrete character history
+tree <- sim.history(tree, Q, anc = "1")
+## plot discrete character history on the tree
+plotSimmap(tree, setNames(c("blue", "red"), 1:2), pts = F)
+
+x <- sim.rates(tree, setNames(c(1, 20), 1:2), internal = FALSE)
+```
+
+
+```{r setup}
+
+```
