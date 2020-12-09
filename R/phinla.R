@@ -143,6 +143,14 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
 
   A_mat <- Matrix::Matrix(phy_mat[nam, ])
 
+  resp <- all.vars(formula[[2]])
+
+  phy_stack <- INLA::inla.stack(data = list(y = dat[ , resp]),
+                              A = list(A_mat, 1),
+                              effects = list(node_id = node_indexes,
+                                             root = dat$root),
+                              tag = "rates")
+
   if(aces) {
     aces_A_mat <- RRphylo::makeL1(phy)[ , -1]
     tip_mat <- matrix(0, nrow = nrow(aces_A_mat), ncol = length(phy$tip.label))
@@ -150,24 +158,46 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     aces_A_mat <- cbind(aces_A_mat, tip_mat)
     aces_A_mat <- aces_A_mat[ , colnames(phy_mat)]
     aces_A_mat <- Matrix::Matrix(aces_A_mat)
+
+    aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(aces_A_mat))),
+                                   A = list(aces_A_mat, 1),
+                                   effects = list(node_id = 1:ncol(aces_A_mat),
+                                                  root = rep(1, nrow(aces_A_mat))),
+                                   tag = "aces")
+
+    full_stack <- INLA::inla.stack(phy_stack, aces_stack)
   }
 
-  resp <- all.vars(formula[[2]])
-
-  phy_dat <- INLA::inla.stack(data = list(y = dat[ , resp]),
-                              A = list(A_mat, 1),
-                              effects = list(node_id = node_indexes,
-                                             root = dat$root),
-                              tag = "rates")
+  pc.prec = list(prec = list(prior = "pc.prec", param = c(5, 0.01)))
 
   if(rate_model == "bayes_ridge") {
     inla_form <- y ~ 0 + root + f(node_id, model = "iid",
-                                  constr = TRUE)
+                                  constr = FALSE,
+                                  hyper = pc.prec)
+
+  }
+
+  if(aces) {
+    fit_modes <- INLA::inla(inla_form,
+                       data = INLA::inla.stack.data(phy_stack),
+                       family = family,
+                       control.predictor = list(A = inla.stack.A(phy_stack),
+                                                compute = FALSE))
 
     fit <- INLA::inla(inla_form,
-                      data = INLA::inla.stack.data(phy_dat),
-                      control.predictor = list(A = inla.stack.A(phy_dat),
+                       data = INLA::inla.stack.data(full_stack),
+                       family = family,
+                       control.predictor = list(A = inla.stack.A(full_stack),
+                                                compute = TRUE),
+                       control.mode = list(theta = fit_modes$mode$theta, restart = FALSE))
+  } else {
+    fit <- INLA::inla(inla_form,
+                      data = INLA::inla.stack.data(phy_stack),
+                      family = family,
+                      control.predictor = list(A = inla.stack.A(phy_stack),
                                                compute = TRUE))
   }
+
+  fit
 
 }

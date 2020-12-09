@@ -19,6 +19,7 @@ knitr::opts_chunk$set(
 ```{r sim_data}
 library(phinla)
 library(phytools)
+library(RRphylo)
 
 set.seed(2300)
 ## transition matrix for the discrete trait simulation
@@ -32,8 +33,18 @@ plotSimmap(tree, setNames(c("blue", "red"), 1:2), pts = F)
 
 x <- sim.rates(tree, setNames(c(1, 20), 1:2), internal = FALSE)
 ```
+Okay, let's fit the most basic model in `phinla` and compare it to what we get with `RRphylo`. As a first step, it is always a good idea to standardise the response variable to improve convergence and comparability.
 
+```{r fit_model}
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
 
-```{r setup}
+inla_fit <- phinla(phy = tree, data = x)
+summary(inla_fit)
 
+```
+Now for `RRphylo`:
+
+```{r fit_RR}
+RR_fit <- RRphylo(phy, x)
+plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[1000:1997]))
 ```
