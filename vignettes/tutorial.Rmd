@@ -20,12 +20,13 @@ knitr::opts_chunk$set(
 library(phinla)
 library(phytools)
 library(RRphylo)
+library(dplyr)
 
 set.seed(2300)
 ## transition matrix for the discrete trait simulation
 Q <- matrix(c(-1, 1, 1, -1), 2, 2)
 ## simulated tree
-tree <- pbtree(n = 500, scale = 1)
+tree <- pbtree(n = 100, scale = 1)
 ## simulate discrete character history
 tree <- sim.history(tree, Q, anc = "1")
 ## plot discrete character history on the tree
@@ -37,14 +38,15 @@ Okay, let's fit the most basic model in `phinla` and compare it to what we get w
 
 ```{r fit_model}
 x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+#x <- scales::rescale(x, c(-10, 10))
 
-inla_fit <- phinla(phy = tree, data = x)
+inla_fit <- phinla(phy = tree, data = x, verbose = FALSE)
 summary(inla_fit)
 
 ```
 Now for `RRphylo`:
 
 ```{r fit_RR}
-RR_fit <- RRphylo(phy, x)
-plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[1000:1997]))
+RR_fit <- RRphylo(tree, x)
+plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[200:397]))
 ```

@@ -50,7 +50,8 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                              "brownian_rates", "temporal_plus_brownian"),
                    temporal_model = "crw1",
                    fit = TRUE, aces = TRUE,
-                   hyper_priors = NULL,
+                   hyper = NULL,
+                   obs_error = c("est", "one", "zero"),
                    ...) {
 
   rate_model <- match.arg(rate_model)
@@ -168,7 +169,20 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     full_stack <- INLA::inla.stack(phy_stack, aces_stack)
   }
 
-  pc.prec = list(prec = list(prior = "pc.prec", param = c(5, 0.01)))
+  if(!is.null(hyper)) {
+    if(is.numeric(hyper)) {
+
+    } else {
+      if(is.character(hyper)) {
+        dat_sd <- sd(dat[ , resp])
+        l <- A_mat > 0
+        e_var <- sqrt(dat_sd / sum(A_mat[l]) / sum(l))
+        prior <- switch(hyper,
+                        pc = list(prec = list(prior = "pc.prec", param = c(e_var, 0.01))))
+      }
+    }
+  }
+
 
   if(rate_model == "bayes_ridge") {
     inla_form <- y ~ 0 + root + f(node_id, model = "iid",
@@ -181,20 +195,28 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     fit_modes <- INLA::inla(inla_form,
                        data = INLA::inla.stack.data(phy_stack),
                        family = family,
-                       control.predictor = list(A = inla.stack.A(phy_stack),
-                                                compute = FALSE))
+                       control.family = list(hyper = list(prec = list(prior = "gaussian",
+                                                                      initial = 1,
+                                                                      fixed = TRUE))),
+                       control.predictor = list(A = INLA::inla.stack.A(phy_stack),
+                                                compute = FALSE),
+                       ...)
 
     fit <- INLA::inla(inla_form,
                        data = INLA::inla.stack.data(full_stack),
-                       family = family,
-                       control.predictor = list(A = inla.stack.A(full_stack),
-                                                compute = TRUE),
-                       control.mode = list(theta = fit_modes$mode$theta, restart = FALSE))
+                      family = family,
+                      control.family = list(hyper = list(prec = list(prior = "gaussian",
+                                                                     initial = 1,
+                                                                     fixed = TRUE))),
+                      control.predictor = list(A = INLA::inla.stack.A(full_stack),
+                                               compute = TRUE),
+                      control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
+                      ...)
   } else {
     fit <- INLA::inla(inla_form,
                       data = INLA::inla.stack.data(phy_stack),
                       family = family,
-                      control.predictor = list(A = inla.stack.A(phy_stack),
+                      control.predictor = list(A = INLA::inla.stack.A(phy_stack),
                                                compute = TRUE))
   }
 
