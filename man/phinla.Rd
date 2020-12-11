@@ -15,7 +15,8 @@ phinla(
   temporal_model = "crw1",
   fit = TRUE,
   aces = TRUE,
-  hyper_priors = NULL,
+  hyper = NULL,
+  obs_error = c("est", "one", "zero"),
   ...
 )
 }

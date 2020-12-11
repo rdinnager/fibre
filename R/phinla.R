@@ -55,6 +55,16 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                    ...) {
 
   rate_model <- match.arg(rate_model)
+  obs_error <- match.arg(obs_error)
+
+  fam_cont <- switch(obs_error,
+                     est = list(),
+                     one = list(hyper = list(prec = list(prior = "gaussian",
+                                                         initial = 1,
+                                                         fixed = TRUE))),
+                     zerp = list(hyper = list(prec = list(prior = "gaussian",
+                                                          initial = 0,
+                                                          fixed = TRUE))))
 
   phy_mat <- RRphylo::makeL(phy)[ , -1]
 
@@ -167,18 +177,27 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                                    tag = "aces")
 
     full_stack <- INLA::inla.stack(phy_stack, aces_stack)
+  } else {
+    full_stack <- phy_stack
+    rm(phy_stack)
   }
 
-  if(!is.null(hyper)) {
-    if(is.numeric(hyper)) {
+  if(is.null(hyper)) {
+    hyper <- "pc"
+  }
 
-    } else {
-      if(is.character(hyper)) {
+
+  if(is.numeric(hyper)) {
+    prior <- list(prec = list(initial = hyper, fixed = TRUE))
+  } else {
+    if(is.character(hyper)) {
+      if(hyper == "pc") {
         dat_sd <- sd(dat[ , resp])
         l <- A_mat > 0
-        e_var <- sqrt(dat_sd / sum(A_mat[l]) / sum(l))
-        prior <- switch(hyper,
-                        pc = list(prec = list(prior = "pc.prec", param = c(e_var, 0.01))))
+        e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
+                         (sum(l) / length(phy$tip.label)))) * 3
+        message("Choosing alpha parameter of ", e_var)
+        prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
       }
     }
   }
@@ -187,7 +206,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
   if(rate_model == "bayes_ridge") {
     inla_form <- y ~ 0 + root + f(node_id, model = "iid",
                                   constr = FALSE,
-                                  hyper = pc.prec)
+                                  hyper = prior)
 
   }
 
@@ -195,9 +214,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     fit_modes <- INLA::inla(inla_form,
                        data = INLA::inla.stack.data(phy_stack),
                        family = family,
-                       control.family = list(hyper = list(prec = list(prior = "gaussian",
-                                                                      initial = 1,
-                                                                      fixed = TRUE))),
+                       control.family = fam_cont,
                        control.predictor = list(A = INLA::inla.stack.A(phy_stack),
                                                 compute = FALSE),
                        ...)
@@ -205,9 +222,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     fit <- INLA::inla(inla_form,
                        data = INLA::inla.stack.data(full_stack),
                       family = family,
-                      control.family = list(hyper = list(prec = list(prior = "gaussian",
-                                                                     initial = 1,
-                                                                     fixed = TRUE))),
+                      control.family = fam_cont,
                       control.predictor = list(A = INLA::inla.stack.A(full_stack),
                                                compute = TRUE),
                       control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
@@ -216,9 +231,11 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
     fit <- INLA::inla(inla_form,
                       data = INLA::inla.stack.data(phy_stack),
                       family = family,
-                      control.predictor = list(A = INLA::inla.stack.A(phy_stack),
+                      control.predictor = list(A = INLA::inla.stack.A(full_stack),
                                                compute = TRUE))
   }
+
+  attr(fit, "stack") <- full_stack
 
   fit
 
