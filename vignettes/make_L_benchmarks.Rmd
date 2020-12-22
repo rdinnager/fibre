@@ -1,0 +1,30 @@
+---
+title: "make_L_benchmarks"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{make_L_benchmarks}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(phinla)
+library(phytools)
+library(RRphylo)
+
+set.seed(230045)
+## simulated tree
+phy <- pbtree(n = 1000, scale = 1, d = 0.2)
+
+L1 <- makeL(phy)[ , -1]
+L2 <- make_L(phy)
+
+all.equal(L1, L2)
+```

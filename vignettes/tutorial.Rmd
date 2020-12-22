@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-`phinla` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The follwoign code is taken directly from this chapter of Luk J. Harmon's online book (link).
+`phinla` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The following code is taken directly from this chapter of Luk J. Harmon's online book (link).
 
 ```{r sim_data}
 library(phinla)
@@ -22,17 +22,23 @@ library(phytools)
 library(RRphylo)
 library(dplyr)
 
-set.seed(2300)
+set.seed(230045)
 ## transition matrix for the discrete trait simulation
 Q <- matrix(c(-1, 1, 1, -1), 2, 2)
 ## simulated tree
-tree <- pbtree(n = 100, scale = 1)
-## simulate discrete character history
-tree <- sim.history(tree, Q, anc = "1")
-## plot discrete character history on the tree
-plotSimmap(tree, setNames(c("blue", "red"), 1:2), pts = F)
+tree <- pbtree(n = 100, scale = 1, d = 0.2)
 
-x <- sim.rates(tree, setNames(c(1, 20), 1:2), internal = TRUE)
+rates <- setNames(c(1, 20), 1:2)
+
+x <- simulate_traits(tree, rate_model = "discrete", temp_trend_rates = 0,
+                     rate_change = Q, rates = rates, internal = TRUE)
+
+# test <- simulate_traits(tree, rate_model = "continuous", temp_trend = -0.5, 
+#                         rate_change = 1, internal = TRUE, anc = c(0, 1),
+#                         nsim = 1, log_rates = TRUE)
+
+# contMap(tree, test[1:length(tree$tip.label)], anc.states = test[(length(tree$tip.label) + 1L):length(test)], method = "user")
+
 
 ```
 
@@ -56,7 +62,8 @@ Now for `RRphylo`:
 
 ```{r fit_RR}
 RR_fit <- RRphylo(tree, x)
-plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[200:397]))
+n_node <- length(tree$tip.label) + tree$Nnode
+plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
 ```
 Let's try fixing the lambda parameter to what `RRphylo` chose.
 
@@ -65,7 +72,15 @@ inla_fit2 <- phinla(phy = tree, data = x, obs_error = "one", hyper = RR_fit$lamb
                    verbose = FALSE)
 summary(inla_fit2)
 
-plot(cbind(RR_fit$rates[-1], inla_fit2$summary.fitted.values$mode[200:397]))
+plot(cbind(RR_fit$rates[-1], inla_fit2$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+abline(0, 1)
+
+inla_fit2 <- phinla(phy = tree, data = x, obs_error = "est", hyper = RR_fit$lambda,
+                   verbose = FALSE)
+summary(inla_fit2)
+
+plot(cbind(RR_fit$rates[-1], inla_fit2$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+abline(0, 1)
 ```
 
 ```{r full_fit}
@@ -73,7 +88,7 @@ inla_fit3 <- phinla(phy = tree, data = x, obs_error = "est",
                    verbose = FALSE)
 summary(inla_fit3)
 
-plot(cbind(RR_fit$rates[-1], inla_fit3$summary.fitted.values$mode[200:397]))
+plot(cbind(RR_fit$rates[-1], inla_fit3$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
 ```
 ```{r aces_1}
 ace_ind <- INLA::inla.stack.index(attr(inla_fit3, "stack"), "aces")$data
@@ -94,5 +109,80 @@ contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "use
 contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
 contMap(tree, RR_fit$predicted.phenotype %>% apply(1, function(x) x), 
         anc.states = RR_fit$aces %>% apply(1, function(x) x), method = "user")
+
+```
+
+```{r weird_thing}
+get_rate_var <- function(RR_fit) {
+  betas <- RR_fit$rates
+  L <- RR_fit$tip.path
+  t <- RR_fit$tree
+  Rvar <- array()
+          for (i in 1:Ntip(t)) {
+              ace.tip <- betas[match(names(which(L[i, ] != 0)), 
+                  rownames(betas)), ]
+              mat = as.matrix(dist(ace.tip))
+              Rvar[i] <- sum(mat[row(mat) == col(mat) + 1])
+          }
+  var(Rvar)
+}
+get_rate_var(RR_fit)
+```
+```{r br_effect}
+tree_long <- tree
+tree_long$edge.length <- tree_long$edge.length * 111
+RR_fit_long <- RRphylo(tree_long, x)
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+contMap(tree, RR_fit_long$predicted.phenotype %>% apply(1, function(x) x), 
+        anc.states = RR_fit_long$aces %>% apply(1, function(x) x), method = "user")
+RR_fit_long$lambda
+get_rate_var(RR_fit_long)
+```
+```{r opposite}
+Q <- matrix(c(-1, 1, 1, -1), 2, 2)
+## simulated tree
+tree <- pbtree(n = 100, scale = 1)
+## simulate discrete character history
+tree <- sim.history(tree, Q, anc = "1")
+## plot discrete character history on the tree
+plotSimmap(tree, setNames(c("blue", "red"), 1:2), pts = F)
+
+x <- sim.rates(tree, setNames(c(20, 1), 1:2), internal = TRUE)
+
+tree$edge.length <- tree$edge.length * 200
+
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+aces_true <- x[(length(tree$tip.label) + 1L):length(x)]
+
+x <- x[1:length(tree$tip.label)]
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+
+
+inla_fit_o <- phinla(phy = tree, data = x, obs_error = "est", verbose = FALSE)
+summary(inla_fit_o)
+
+RR_fit_o <- RRphylo(tree, x)
+plot(cbind(RR_fit_o$rates[-1], inla_fit_o$summary.fitted.values$mode[200:397]))
+
+ace_ind <- INLA::inla.stack.index(attr(inla_fit_o, "stack"), "aces")$data
+ace_preds <- inla_fit_o$summary.fitted.values$mode[ace_ind]
+plot(aces_true, ace_preds)
+plot(aces_true, RR_fit_o$aces[ , 1])
+
+tip_ind <- 1:length(tree$tip.label)
+tip_preds <- inla_fit_o$summary.fitted.values$mode[tip_ind]
+plot(x, tip_preds)
+plot(x, RR_fit_o$predicted.phenotype[ , 1])
+
+names(tip_preds) <- names(x)
+names(ace_preds) <- names(aces_true)
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
+contMap(tree, RR_fit_o$predicted.phenotype %>% apply(1, function(x) x), 
+        anc.states = RR_fit_o$aces %>% apply(1, function(x) x), method = "user")
+
 
 ```

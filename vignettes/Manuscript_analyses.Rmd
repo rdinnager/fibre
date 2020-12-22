@@ -1,0 +1,86 @@
+---
+title: "Manuscript_analyses"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Manuscript_analyses}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+In this vignette we show how we ran the analyses included in the manuscript describing the PhyBRR method and package implementing it. We will test the method by analysing the body sizes of ~ 5000 mammal species across their phylogeny.
+
+```{r load_data}
+library(phinla)
+library(readr)
+library(ape)
+library(phytools)
+library(tidyverse)
+
+traits <- read_csv("../extdata/mammal_tip_trait_data.csv") %>%
+  drop_na(body_mass_median)
+tree <- read.nexus("../extdata/terrestrial_mammal_tree_matching_IUCN.nexus") %>%
+  drop.tip(which(!.$tip.label %in% traits$phylogeny_binomial))
+
+body_mass <- tibble(species = tree$tip.label) %>%
+  left_join(traits %>%
+              select(species = phylogeny_binomial,
+                     body_mass_median)) %>%
+  drop_na(body_mass_median) %>%
+  group_by(species) %>%
+  summarise(body_mass_median = mean(body_mass_median),
+            .groups = "drop")
+
+plot(tree)
+ggplot(body_mass, aes(body_mass_median)) +
+  geom_histogram() +
+  scale_x_log10() +
+  theme_minimal()
+
+tree_bm <- log(body_mass$body_mass_median + 0.01)
+names(tree_bm) <- body_mass$species
+contMap(tree, tree_bm)
+
+## we have this many species
+length(tree$tip.label)
+
+```
+Let's scale the branch lengths of our tree and our logged bodymass values and see if we can fit the simplest `phinla` model, which is a phylogenetic Bayesian ridge regression.
+
+```{r fir_basic}
+tree_bm_scaled <- scale(tree_bm) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+tree_scaled <- tree
+## scale so the largest edge length is 1
+tree_scaled$edge.length <- tree_scaled$edge.length / max(tree_scaled$edge.length)
+
+## see how long it take to fit as well
+system.time(
+fit <- phinla(phy = tree_scaled, data = tree_bm_scaled, obs_error = "est", verbose = FALSE)
+)
+summary(fit)
+
+```
+
+```{r preds}
+ace_ind <- INLA::inla.stack.index(attr(fit, "stack"), "aces")$data
+ace_preds <- fit$summary.fitted.values$mode[ace_ind]
+
+tip_ind <- 1:length(tree$tip.label)
+tip_preds <- fit$summary.fitted.values$mode[tip_ind]
+
+names(tip_preds) <- names(tree_bm_scaled)
+names(ace_preds) <- (length(tree$tip.label) + 1):(length(tree$tip.label) + length(ace_preds))
+
+contMap(tree, tree_bm_scaled)
+contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
+
+```
+
+

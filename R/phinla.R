@@ -33,7 +33,6 @@
 #' allows rates to change quickly (e.g. they can be "wiggly"). Specify a particular model of
 #' temporal autocorrelation with the \code{temporal_model} argument.}
 #' }
-#' @param temporal_model
 #' @param fit
 #' @param aces
 #' @param hyper_priors
@@ -48,7 +47,6 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                    family = "gaussian",
                    rate_model = c("bayes_ridge", "temporal_rates",
                              "brownian_rates", "temporal_plus_brownian"),
-                   temporal_model = "crw1",
                    fit = TRUE, aces = TRUE,
                    hyper = NULL,
                    obs_error = c("est", "one", "zero"),
@@ -66,6 +64,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                                                           initial = 0,
                                                           fixed = TRUE))))
 
+  message("Generating root-to-tip matrix...")
   phy_mat <- RRphylo::makeL(phy)[ , -1]
 
   node_names <- colnames(phy_mat)
@@ -209,6 +208,8 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                                   hyper = prior)
 
   }
+
+  message("Fitting model...")
 
   if(aces) {
     fit_modes <- INLA::inla(inla_form,

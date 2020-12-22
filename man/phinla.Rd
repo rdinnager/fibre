@@ -12,7 +12,6 @@ phinla(
   family = "gaussian",
   rate_model = c("bayes_ridge", "temporal_rates", "brownian_rates",
     "temporal_plus_brownian"),
-  temporal_model = "crw1",
   fit = TRUE,
   aces = TRUE,
   hyper = NULL,

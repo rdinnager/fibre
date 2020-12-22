@@ -17,10 +17,12 @@ RoxygenNote: 7.1.1
 Suggests: 
     knitr,
     rmarkdown,
-    phytools
+    phytools,
+    bench
 VignetteBuilder: knitr
 Imports: 
     INLA,
     ape,
     RRphylo,
-    dplyr
+    dplyr,
+    igraph
