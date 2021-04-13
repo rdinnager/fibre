@@ -54,7 +54,7 @@ x <- x[1:length(tree$tip.label)]
 contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
 
 
-inla_fit <- phinla(phy = tree, data = x, obs_error = "one", verbose = FALSE)
+inla_fit <- phybrr(phy = tree, data = x, obs_error = "one", verbose = FALSE)
 summary(inla_fit)
 
 ```
@@ -63,43 +63,44 @@ Now for `RRphylo`:
 ```{r fit_RR}
 RR_fit <- RRphylo(tree, x)
 n_node <- length(tree$tip.label) + tree$Nnode
-plot(cbind(RR_fit$rates[-1], inla_fit$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit, "mode")))
 ```
 Let's try fixing the lambda parameter to what `RRphylo` chose.
 
 ```{r lambfa_fix}
-inla_fit2 <- phinla(phy = tree, data = x, obs_error = "one", hyper = RR_fit$lambda,
+inla_fit2 <- phybrr(phy = tree, data = x, obs_error = "one", hyper = RR_fit$lambda,
                    verbose = FALSE)
 summary(inla_fit2)
 
-plot(cbind(RR_fit$rates[-1], inla_fit2$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit2, "mode")))
 abline(0, 1)
 
-inla_fit2 <- phinla(phy = tree, data = x, obs_error = "est", hyper = RR_fit$lambda,
+inla_fit2 <- phybrr(phy = tree, data = x, obs_error = "est", hyper = RR_fit$lambda,
                    verbose = FALSE)
 summary(inla_fit2)
 
-plot(cbind(RR_fit$rates[-1], inla_fit2$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit2, "mode")))
 abline(0, 1)
 ```
 
 ```{r full_fit}
-inla_fit3 <- phinla(phy = tree, data = x, obs_error = "est",
+inla_fit3 <- phybrr(phy = tree, data = x, obs_error = "est",
                    verbose = FALSE)
 summary(inla_fit3)
 
-plot(cbind(RR_fit$rates[-1], inla_fit3$summary.fitted.values$mode[(n_node + 1):(n_node * 2 - 1)]))
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit3, "mode")))
 ```
 ```{r aces_1}
-ace_ind <- INLA::inla.stack.index(attr(inla_fit3, "stack"), "aces")$data
-ace_preds <- inla_fit3$summary.fitted.values$mode[ace_ind]
+aces_preds <- get_aces(inla_fit3, "mode")
 plot(aces_true, ace_preds)
+
 plot(aces_true, RR_fit$aces[ , 1])
 ```
 ```{r tips_1}
-tip_ind <- 1:length(tree$tip.label)
-tip_preds <- inla_fit3$summary.fitted.values$mode[tip_ind]
+tip_preds <- get_tips(inla_fit3, "mode")
 plot(x, tip_preds)
+
 plot(x, RR_fit$predicted.phenotype[ , 1])
 
 names(tip_preds) <- names(x)
@@ -109,6 +110,17 @@ contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "use
 contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
 contMap(tree, RR_fit$predicted.phenotype %>% apply(1, function(x) x), 
         anc.states = RR_fit$aces %>% apply(1, function(x) x), method = "user")
+
+```
+
+```{r sd_plot}
+aces_sd <- get_aces(inla_fit3, "sd")
+tip_sd <- get_tips(inla_fit3, "sd")
+
+names(tip_sd) <- names(x)
+names(aces_sd) <- names(aces_true)
+
+contMap(tree, tip_sd, anc.states = aces_sd, method = "user")
 
 ```
 
@@ -160,7 +172,7 @@ x <- x[1:length(tree$tip.label)]
 contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
 
 
-inla_fit_o <- phinla(phy = tree, data = x, obs_error = "est", verbose = FALSE)
+inla_fit_o <- phybrr(phy = tree, data = x, obs_error = "est", verbose = FALSE)
 summary(inla_fit_o)
 
 RR_fit_o <- RRphylo(tree, x)

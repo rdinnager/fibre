@@ -28,3 +28,15 @@ L2 <- make_L(phy)
 
 all.equal(L1, L2)
 ```
+
+```{r compare_l1}
+L11 <- makeL1(phy)[ , -1]
+L12 <- make_L(phy, return_nodes = "internal")[ , 1:(phy$Nnode - 1)]
+
+all.equal(L11, L12)
+
+t1 <- make_L(phy, return_nodes = "both")
+glimpse(t1)
+t2 <- make_L(phy, return_nodes = "both", return_type = "list")
+glimpse(t2)
+```

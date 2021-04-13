@@ -1,0 +1,282 @@
+---
+title: "testing_node_phyloglmm"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{testing_node_phyloglmm}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+################################
+
+# R code from Cooney & Thomas 'Heterogeneous relationships between rates of speciation and 
+# body size evolution across vertebrate clades'
+# Nature Ecology & Evolution
+
+################################
+
+
+### Branch-rate metrics
+
+
+DR_stat <- function(x, return.mean = FALSE){ 
+  rootnode <- length(x$tip.label) + 1
+  sprates <- numeric(length(x$tip.label))
+  for (i in 1:length(sprates)){
+    node <- i
+    index <- 1
+    qx <- 0
+    while (node != rootnode){
+      el <- x$edge.length[x$edge[,2] == node]
+      node <- x$edge[,1][x$edge[,2] == node]    
+      qx <- qx + el* (1 / 2^(index-1))
+      index <- index + 1
+    }
+    sprates[i] <- 1/qx
+  }
+  if (return.mean){
+    return(mean(sprates))   
+  }else{
+    names(sprates) <- x$tip.label
+    return(sprates)
+  }
+}
+
+
+TR_stat <- function(x, return.mean = FALSE){ 
+  # Calculate metric based on weighted averages of branch rates (TRes)
+  rootnode <- length(x$tip.label) + 1
+  sprates <- numeric(length(x$tip.label))
+  for (i in 1:length(sprates)){
+    node <- i
+    index <- 1
+    rx <- c()
+    wx <- c()
+    while (node != rootnode){
+      el <- x$edge.length[x$edge[,2] == node]
+      node <- x$edge[,1][x$edge[,2] == node]    
+      rx <- c(rx, el) ### modified
+      wx <- c(wx,  1/2^(index-1))
+      index <- index + 1
+    }
+    sprates[i] <- weighted.mean(rx, wx) # take weighted mean of bls to avoid node height bias associated with summing values
+  }
+  if (return.mean){
+    return(mean(sprates))   
+  }else{
+    names(sprates) <- x$tip.label
+    return(sprates)
+  }
+}
+
+
+TB_stat <- function(phy) {
+  # length of terminal branches of rate scaled tree
+  tb <- setNames(phy$edge.length[sapply(1:length(phy$tip.label), function(x,y) which(y==x), y=phy$edge[,2])], phy$tip.label)
+  return(tb)
+}
+
+
+# --------------------------- #
+
+
+##¢ Simulation test functions
+
+
+get.null.rates <- function (j, phy, null.trait.rates, type) {
+  frates <- c()
+  ftree <- phy
+  ftree$edge.length <- null.trait.rates[j,]
+  if (type == "tree") {
+    frates <- ftree$edge.length
+  }
+  if (type == "tips") {
+    frates <- TB_stat(ftree)
+  }
+  if (type == "es") {
+    frates <- TR_stat(ftree)
+  }
+  return(frates)
+}
+
+
+sim.test <- function (spp.rates, trait.rates, null.trait.rates, cor.method = "spearman") {
+  obs.cor <- cor(log(trait.rates), log(spp.rates), method = cor.method)
+  sims <- nrow(null.trait.rates)
+  sim.cor <- c()
+  for (k in 1:sims) {
+    frates <- null.trait.rates[k,]
+    sim.cor <- c(sim.cor, cor(log(frates), log(spp.rates), method = cor.method))
+  }
+  upper <- (length(sim.cor[sim.cor >= obs.cor])+1)/(sims+1)
+  lower <- (length(sim.cor[sim.cor <= obs.cor])+1)/(sims+1)
+  pval <- 2*min(c(upper,lower)) # Calculate the two-tailed p value (remove "2" for one-tailed)
+  if (pval == 0) { pval <- 2*(1/sims) }
+  cis <- quantile(sim.cor, probs = c(0.025, 0.975))
+  ses <- (obs.cor - mean(sim.cor)) / sd(sim.cor)
+  out <- c(obs.cor, mean(sim.cor), cis[1], cis[2], pval, ses)
+  names(out) <- c("obs.cor", "sim.cor.mean", "sim.cor.lci", "sim.cor.uci", "pval", "ses")
+  return(out)
+}
+```
+
+```{r setup}
+library(phinla)
+```
+
+First we simulate data following Cooney and Thomas ().
+
+```{r sims}
+library(RPANDA)
+library(phytools)
+library(geiger)
+library(RRphylo)
+library(dplyr)
+
+#ns <- c(50, 150, 250, 500)[gl(4, 25)]
+ns <- rep(150, 100)
+test <- sim_ClaDS(lambda_0 = 0.1,
+               mu_0 = 0,
+               alpha_mu = 1,
+               sigma_mu = 0.175,
+               condition = "taxa",
+               taxa_stop = 50)
+sims <- lapply(ns, function(x) sim_ClaDS(lambda_0 = 0.1,
+               mu_0 = 0,
+               alpha_mu = 1,
+               sigma_mu = 0.175,
+               condition = "taxa",
+               taxa_stop = x))
+
+```
+
+```{r sim_traits}
+generate_corr_traits <- function(sim, r = 0, alpha = 0, noise = 0,
+                                 obs_error = 0.01, min_rate = alpha / 10,
+                                 mult = 1) {
+  spec_rates <- sim$lamb[sim$rates]
+  rate_tree <- sim$tree
+  trait_rates <- (alpha + r * (spec_rates - min(spec_rates)) + 
+    rnorm(length(rate_tree$edge.length), 0, noise))
+  
+  if(any(trait_rates < min_rate)) {
+    trait_rates <- trait_rates + (min_rate - min(trait_rates) )
+  }
+  
+  rate_tree$edge.length <- trait_rates * rate_tree$edge.length * mult
+  
+  traits <- fastBM(rate_tree, internal = TRUE)
+  if(obs_error > 0) {
+    traits_tips <- traits[1:length(sim$tree$tip.label)] + rnorm(length(traits[1:length(sim$tree$tip.label)]), 0, obs_error * sd(traits[1:length(sim$tree$tip.label)]))
+  } else {
+    traits_tips <- traits[1:length(sim$tree$tip.label)]
+  }
+  
+  changes <- cbind(traits[sim$tree$edge[ , 1]],
+                   traits[sim$tree$edge[ , 2]],
+                   sim$tree$edge.length) %>%
+    apply(1, function(x) (x[2] - x[1]) / x[3])
+  
+  # plot(abs(changes) ~ trait_rates)
+  # plot(abs(changes) ~ spec_rates)
+  # cor.test(abs(changes), trait_rates, method = "spearman")
+  # cor.test(abs(changes), spec_rates, method = "spearman")
+  # range(trait_rates)
+  
+  names(traits_tips) <- rate_tree$tip.label
+  list(tree = sim$tree, tip_traits = traits_tips, spec_rates = spec_rates,
+       trait_rates = trait_rates, all_traits = traits,
+       changes = changes)
+}
+
+sim_pos_1 <- lapply(sims, generate_corr_traits, r = 100, alpha = 0)
+sim_pos_0.5 <- lapply(sims, generate_corr_traits, r = 50, alpha = 0,)
+sim_neg_1 <- lapply(sims, generate_corr_traits, r = -100, alpha = 0)
+sim_neg_0.5 <- lapply(sims, generate_corr_traits, r = -50, alpha = 0)
+sim_none <- lapply(sims, generate_corr_traits, r = 100, alpha = 0)
+```
+
+Okay, now let's fit our trait models. For simplicity we assume speciation rates are know perfectly, instead of fitting them, because `fit_ClaDS` is too slow to run on so many simulations.
+
+```{r setup_fits}
+fit_rate_model <- function(sim) {
+  suppressMessages({
+  #rate_mod <- RRphylo(sim$tree, sim$tip_traits)
+  rate_mod <- phybrr(phy = sim$tree, data = sim$tip_traits,
+                     aces = FALSE)
+  
+  #subtenders <- as.numeric(rownames(rate_mod$rates))
+  #rates <- rate_mod$rates[ , 1]
+  rates <- get_rates(rate_mod, "mean")
+  subtenders <- c((length(sim$tree$tip.label) + 2):(length(sim$tree$tip.label) + sim$tree$Nnode), 1:length(sim$tree$tip.label))
+  edge_match <- match(sim$tree$edge[ , 2], subtenders)
+  
+  rate_df <- tibble(spec_rate = sim$spec_rates,
+                    trait_rate = abs(rates[edge_match]),
+                    trait_rel = rates[edge_match],
+                    trait_rate_true = sim$changes)
+  
+  phy_prec <- MCMCglmm::inverseA(sim$tree)$Ainv
+  
+  nodes <- as.numeric(gsub("Node", "", rownames(phy_prec)))
+  nodes <- nodes + ifelse(grepl("Node", rownames(phy_prec)), 
+                          length(sim$tree$tip.label),
+                          0)
+  
+  rate_df$phy_id <- match(sim$tree$edge[ , 2], nodes)
+  
+  sdres <- sd(resid(lm(rate_df$trait_rate~rate_df$spec_rate)))
+  prior <- list(prec = list(prior = "pc.prec", param = c(3 * sdres, 0.01)))
+  
+  mod <- INLA::inla(trait_rate ~ spec_rate + f(phy_id,
+                                               model = "generic0",
+                                               Cmatrix = phy_prec,
+                                               constr = TRUE,
+                                               hyper = prior),
+                    data = rate_df)
+  
+  mod2 <- lm(rate_df$trait_rate ~ rate_df$spec_rate)
+  })
+  
+  list(rate_model = rate_mod, phy_model = mod, lm_model = mod2)
+}
+
+results <- pbapply::pblapply(c(sim_none, sim_neg_1, sim_pos_1,
+                               sim_neg_0.5, sim_pos_0.5),
+                             fit_rate_model)
+
+readr::write_rds(results, "extdata/results.rds")
+```
+
+```{r how_many_sig}
+
+overlaps_zero <- function(x) {
+  phy_ci <- c(x$phy_model$summary.fixed$`0.025quant`[2],
+              x$phy_model$summary.fixed$`0.975quant`[2])
+  phy_hpd = INLA::inla.hpdmarginal(0.95, x$phy_model$marginals.fixed[[2]])
+  ci <- c(summary(x$lm_model)$coefficients[2, 1] - 1.96 * summary(x$lm_model)$coefficients[2, 2],
+          summary(x$lm_model)$coefficients[2, 1] + 1.96 * summary(x$lm_model)$coefficients[2, 2])
+  phy_est <- x$phy_model$summary.fixed$mean[2]
+  est <- summary(x$lm_model)$coefficients[2, 1]
+  phy_overlaps <- prod(phy_ci) < 0
+  phy_hpd_overlaps <- prod(phy_hpd) < 0
+  overlaps <- prod(ci) < 0
+  tibble(phy_lower = phy_ci[1], phy_upper = phy_ci[2],
+         phy_est = phy_est,
+         lower = ci[1], upper = ci[2],
+         est = est,
+         phy_overlaps = phy_overlaps,
+         phy_hpd_overlaps = phy_hpd_overlaps,
+         overlaps = overlaps)
+}
+
+summs <- lapply(results, overlaps_zero)
+summs <- bind_rows(summs)
+
+```

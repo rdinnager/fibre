@@ -18,11 +18,14 @@ Suggests:
     knitr,
     rmarkdown,
     phytools,
-    bench
+    bench,
+    RPANDA
 VignetteBuilder: knitr
 Imports: 
     INLA,
     ape,
     RRphylo,
     dplyr,
-    igraph
+    igraph,
+    pbapply,
+    magrittr

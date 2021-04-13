@@ -4,7 +4,11 @@
 \alias{make_L}
 \title{Make to the root-to-tip matrix of a phylogeny}
 \usage{
-make_L(phy, return_nodes = FALSE)
+make_L(
+  phy,
+  return_nodes = c("tips", "internal", "both"),
+  return_type = c("matrix", "list")
+)
 }
 \arguments{
 \item{return_nodes}{}

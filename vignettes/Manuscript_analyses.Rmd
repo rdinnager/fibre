@@ -61,10 +61,11 @@ tree_scaled <- tree
 tree_scaled$edge.length <- tree_scaled$edge.length / max(tree_scaled$edge.length)
 
 ## see how long it take to fit as well
-system.time(
+timing <- system.time(
 fit <- phinla(phy = tree_scaled, data = tree_bm_scaled, obs_error = "est", verbose = FALSE)
 )
 summary(fit)
+timing
 
 ```
 
