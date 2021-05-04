@@ -60,7 +60,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                      one = list(hyper = list(prec = list(prior = "gaussian",
                                                          initial = 1,
                                                          fixed = TRUE))),
-                     zerp = list(hyper = list(prec = list(prior = "gaussian",
+                     zero = list(hyper = list(prec = list(prior = "gaussian",
                                                           initial = 0,
                                                           fixed = TRUE))))
 
