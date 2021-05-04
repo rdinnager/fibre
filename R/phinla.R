@@ -42,7 +42,7 @@
 #' @export
 #'
 #' @examples
-phinla <- function(formula = ~ 1, phy, data = NULL,
+phybrr <- function(formula = ~ 1, phy, data = NULL,
                    phy_match = "auto",
                    family = "gaussian",
                    rate_model = c("bayes_ridge", "temporal_rates",
@@ -55,6 +55,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
   rate_model <- match.arg(rate_model)
   obs_error <- match.arg(obs_error)
 
+
   fam_cont <- switch(obs_error,
                      est = list(),
                      one = list(hyper = list(prec = list(prior = "gaussian",
@@ -64,8 +65,16 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                                                           initial = 0,
                                                           fixed = TRUE))))
 
-  message("Generating root-to-tip matrix...")
-  phy_mat <- RRphylo::makeL(phy)[ , -1]
+  message("Assembling model data and structure...")
+
+
+  if(inherits(phy, "phylo")) {
+    message("Generating root-to-tip matrix...")
+    phy_mat <- make_L(phy)
+  } else {
+    phy_mat <- phy[[2]]
+    phy <- phy[[1]]
+  }
 
   node_names <- colnames(phy_mat)
   tip_names <- phy$tip.label
@@ -137,11 +146,35 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
 
   te <- terms(formula)
   if(attr(te, "response") == 0) {
-    formula <- update(formula, y ~ .)
+    vars <- setdiff(colnames(data), "node_name")
+    if(length(vars) > 1) {
+      formula <- update(formula, as.formula(paste0("cbind(", paste(vars, collapse = ", "),
+                                   ") ~ .")))
+    } else {
+      formula <- update(formula, y ~ .)
+    }
   }
 
-  dat <- model.frame(formula, data, na.action = "na.pass") %>%
-    as.data.frame()
+  dat <- model.frame(formula, data, na.action = "na.pass")
+
+  if(is.matrix(dat[ , 1])) {
+    fits <- pbapply::pblapply(as.data.frame(dat[ , 1]), function(k) {
+      names(k) <- data$node_name
+      suppressMessages(phybrr(formula = ~ 1, phy = list(phy, phy_mat),
+             data = k,
+             phy_match = "auto",
+             family = family,
+             rate_model = rate_model,
+             fit = fit, aces = aces,
+             hyper = hyper,
+             obs_error = obs_error,
+             ...))
+    })
+    return(fits)
+  } else {
+    dat <- as.data.frame(dat)
+  }
+
   nam <- data$node_name
 
   dat <- dat %>%
@@ -162,11 +195,13 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                               tag = "rates")
 
   if(aces) {
-    aces_A_mat <- RRphylo::makeL1(phy)[ , -1]
-    tip_mat <- matrix(0, nrow = nrow(aces_A_mat), ncol = length(phy$tip.label))
-    colnames(tip_mat) <- phy$tip.label
-    aces_A_mat <- cbind(aces_A_mat, tip_mat)
-    aces_A_mat <- aces_A_mat[ , colnames(phy_mat)]
+    aces_A_mat <- make_L(phy, return_nodes = "internal")
+
+    # aces_A_mat <- RRphylo::makeL1(phy)[ , -1]
+    # tip_mat <- matrix(0, nrow = nrow(aces_A_mat), ncol = length(phy$tip.label))
+    # colnames(tip_mat) <- phy$tip.label
+    # aces_A_mat <- cbind(aces_A_mat, tip_mat)
+    # aces_A_mat <- aces_A_mat[ , colnames(phy_mat)]
     aces_A_mat <- Matrix::Matrix(aces_A_mat)
 
     aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(aces_A_mat))),
@@ -195,11 +230,24 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
         l <- A_mat > 0
         e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
                          (sum(l) / length(phy$tip.label)))) * 3
-        message("Choosing alpha parameter of ", e_var)
+        message("Automatically choosing prior for rate variance: exponential with 1% of probability density above ", e_var)
         prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
       }
     }
   }
+
+  obs_prior <- prior
+  if(hyper == "pc") {
+    obs_prior <- list(prec = list(prior = "pc.prec", param = c(e_var / 3, 0.01)))
+  }
+  fam_cont <- switch(obs_error,
+                     est = list(hyper = prior),
+                     one = list(hyper = list(prec = list(prior = "gaussian",
+                                                         initial = 1,
+                                                         fixed = TRUE))),
+                     zero = list(hyper = list(prec = list(prior = "gaussian",
+                                                          initial = 10,
+                                                          fixed = TRUE))))
 
 
   if(rate_model == "bayes_ridge") {
@@ -221,7 +269,7 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                        ...)
 
     fit <- INLA::inla(inla_form,
-                       data = INLA::inla.stack.data(full_stack),
+                      data = INLA::inla.stack.data(full_stack),
                       family = family,
                       control.family = fam_cont,
                       control.predictor = list(A = INLA::inla.stack.A(full_stack),
@@ -230,13 +278,27 @@ phinla <- function(formula = ~ 1, phy, data = NULL,
                       ...)
   } else {
     fit <- INLA::inla(inla_form,
-                      data = INLA::inla.stack.data(phy_stack),
+                      data = INLA::inla.stack.data(full_stack),
                       family = family,
                       control.predictor = list(A = INLA::inla.stack.A(full_stack),
                                                compute = TRUE))
   }
 
+  nam <- rownames(fit$summary.fitted.values)
+  rate_inds <- grep(".Predictor.", nam, fixed = TRUE)
+  root_ind <- which(!is.na(full_stack$effects$data[ , "root"]))
+
+  rate_index <- rate_inds[-root_ind]
+
+  node_pred_index <- grep(".APredictor.", nam, fixed = TRUE)
+  ace_ind <- INLA::inla.stack.index(full_stack, "aces")$data
+  tip_ind <- setdiff(node_pred_index, ace_ind)
+
   attr(fit, "stack") <- full_stack
+  attr(fit, "indexes") <- list(rates = rate_index,
+                               node_predictions = node_pred_index,
+                               aces = ace_ind,
+                               tips = tip_ind)
 
   fit
 
