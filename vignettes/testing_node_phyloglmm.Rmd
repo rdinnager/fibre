@@ -208,7 +208,7 @@ Okay, now let's fit our trait models. For simplicity we assume speciation rates 
 fit_rate_model <- function(sim) {
   suppressMessages({
   #rate_mod <- RRphylo(sim$tree, sim$tip_traits)
-  rate_mod <- phybrr(phy = sim$tree, data = sim$tip_traits,
+  rate_mod <- fibrer(phy = sim$tree, data = sim$tip_traits,
                      aces = FALSE)
   
   #subtenders <- as.numeric(rownames(rate_mod$rates))

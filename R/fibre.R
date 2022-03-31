@@ -1,4 +1,4 @@
-#' Phylogenetic Branch Regression (PhyBR)
+#' Phylogenetic Branch Regression (fibre)
 #'
 #' @param formula formula specifying the response (LHS) and set of predictors (RHS) for the
 #' phylogenetic model. The default \code{ ~ 1} is special shorthand specifying a model of
@@ -43,7 +43,7 @@
 #' @export
 #'
 #' @examples
-phybr <- function(formula = ~ 1, phy, data = NULL,
+fibre <- function(formula = ~ 1, phy, data = NULL,
                    phy_match = "auto",
                    family = "gaussian",
                    rate_model = "ridge",
@@ -185,7 +185,7 @@ phybr <- function(formula = ~ 1, phy, data = NULL,
   if(is.matrix(dat[ , 1])) {
     fits <- pbapply::pblapply(as.data.frame(dat[ , 1]), function(k) {
       names(k) <- data$node_name
-      suppressMessages(phybrr(formula = ~ 1, phy = c(list(phy, phy_mat),
+      suppressMessages(fibrer(formula = ~ 1, phy = c(list(phy, phy_mat),
                                                      if(aces) list(aces_A_mat) else NULL),
              data = k,
              phy_match = phy_match,

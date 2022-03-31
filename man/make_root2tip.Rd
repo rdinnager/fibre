@@ -37,7 +37,7 @@ the tips (which should all be the same for a time-tree).}
 
 \item{order}{Can be \code{"first_order"} or \code{"second_order"}, specifying whether to return
 the root-to-tip matrix in a first order or a second order specification. See documentation
-of \code{phybr()} for a description of the difference.}
+of \code{fibre()} for a description of the difference.}
 
 \item{sparse}{Should the returned root-to-tip matrix use a sparse matrix representation?
 If \code{FALSE} a regular dense matrix will be returned. The sparse matrix representation is

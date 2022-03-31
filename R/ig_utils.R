@@ -19,7 +19,7 @@
 #' the tips (which should all be the same for a time-tree).
 #' @param order Can be `"first_order"` or `"second_order"`, specifying whether to return
 #' the root-to-tip matrix in a first order or a second order specification. See documentation
-#' of `phybr()` for a description of the difference.
+#' of `fibre()` for a description of the difference.
 #' @param sparse Should the returned root-to-tip matrix use a sparse matrix representation?
 #' If `FALSE` a regular dense matrix will be returned. The sparse matrix representation is
 #' recommended, especially for large trees. Beyond a certain size of tree, only a

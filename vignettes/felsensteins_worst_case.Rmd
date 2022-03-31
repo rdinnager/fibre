@@ -100,14 +100,14 @@ summary(test)
 
 ```
 
-Now let's try setting up the model in `phybr`.
+Now let's try setting up the model in `fibre`.
 
-```{r phybr_setup}
+```{r fibre_setup}
 
 df <- as.data.frame(dat2)
 df$tipnames <- rownames(dat2)
 
-res <- phybr(V2 ~ V1, phy, df, phy_match = "tipnames",
+res <- fibre(V2 ~ V1, phy, df, phy_match = "tipnames",
              rate_order = "second_order",
              hyper = list(prec = list(prior = "pc.prec", param = c(12, 0.01))))
 summary(res)

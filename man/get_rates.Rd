@@ -13,7 +13,7 @@ get_rates(
 )
 }
 \arguments{
-\item{x}{A fitted model object produced by \code{\link{phybrr}}}
+\item{x}{A fitted model object produced by \code{\link{fibrer}}}
 
 \item{type}{What kind of posterior summary to return?}
 

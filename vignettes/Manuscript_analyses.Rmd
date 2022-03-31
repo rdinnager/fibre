@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In this vignette we show how we ran the analyses included in the manuscript describing the PhyBRR method and package implementing it. We will test the method by analysing the body sizes of ~ 5000 mammal species across their phylogeny.
+In this vignette we show how we ran the analyses included in the manuscript describing the fibreR method and package implementing it. We will test the method by analysing the body sizes of ~ 5000 mammal species across their phylogeny.
 
 ```{r load_data}
 library(fibre)

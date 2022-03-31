@@ -1,6 +1,6 @@
 #' Title
 #'
-#' @param x A fitted model object produced by \code{\link{phybrr}}
+#' @param x A fitted model object produced by \code{\link{fibrer}}
 #' @param type What kind of posterior summary to return?
 #' @param n If \code{type = "samples"}, how many samples to return?
 #' @param p If \code{type = "hpd"}, what alpha levels to use?
@@ -38,7 +38,7 @@ get_rates <- function(x, type = c("marginals", "samples",
 
 #' Title
 #'
-#' @param x A fitted model object produced by \code{\link{phybrr}}
+#' @param x A fitted model object produced by \code{\link{fibrer}}
 #' @param type What kind of posterior summary to return?
 #' @param n If \code{type = "samples"}, how many samples to return?
 #' @param p If \code{type = "hpd"}, what alpha levels to use?
@@ -76,7 +76,7 @@ get_aces <- function(x, type = c("marginals", "samples",
 
 #' Title
 #'
-#' @param x A fitted model object produced by \code{\link{phybrr}}
+#' @param x A fitted model object produced by \code{\link{fibrer}}
 #' @param type What kind of posterior summary to return?
 #' @param n If \code{type = "samples"}, how many samples to return?
 #' @param p If \code{type = "hpd"}, what alpha levels to use?
@@ -115,7 +115,7 @@ get_tces <- function(x, type = c("marginals", "samples",
 
 #' Title
 #'
-#' @param x A fitted model object produced by \code{\link{phybrr}}
+#' @param x A fitted model object produced by \code{\link{fibrer}}
 #' @param type What kind of posterior summary to return?
 #' @param n If \code{type = "samples"}, how many samples to return?
 #' @param p If \code{type = "hpd"}, what alpha levels to use?
