@@ -14,10 +14,10 @@ knitr::opts_chunk$set(
 )
 ```
 
-`phinla` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The following code is taken directly from this chapter of Luk J. Harmon's online book (link).
+`fibre` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The following code is taken directly from this chapter of Luk J. Harmon's online book (link).
 
 ```{r sim_data}
-library(phinla)
+library(fibre)
 library(phytools)
 library(RRphylo)
 library(dplyr)
@@ -42,7 +42,7 @@ x <- simulate_traits(tree, rate_model = "discrete", temp_trend_rates = 0,
 
 ```
 
-Okay, let's fit the most basic model in `phinla` and compare it to what we get with `RRphylo`. As a first step, it is always a good idea to standardise the response variable to improve convergence and comparability.
+Okay, let's fit the most basic model in `fibre` and compare it to what we get with `RRphylo`. As a first step, it is always a good idea to standardise the response variable to improve convergence and comparability.
 
 ```{r fit_model}
 x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector

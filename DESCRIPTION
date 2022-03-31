@@ -1,5 +1,5 @@
-Package: phinla
-Title: What the Package Does (One Line, Title Case)
+Package: fibre
+Title: Fast Evolutionary Trait Modelling on Phylogenies using Branch Regression Models
 Version: 0.0.0.9000
 Authors@R: 
     person(given = "Russell",
@@ -7,7 +7,8 @@ Authors@R:
            role = c("aut", "cre"),
            email = "r.dinnage@gmail.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+Description: Implements Phylogenetic Branch Regression models which allow for flexible models
+  of evolution along a phylogeny
 License: `use_mit_license()`, `use_gpl3_license()` or friends to
     pick a license
 Encoding: UTF-8

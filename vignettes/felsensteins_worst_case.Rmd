@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(phinla)
+library(fibre)
 ```
 
 This vignette shows an example of Felsenstein's Worst Case Scenario, as discussed thoroughly in Uyeda et al. 2018 (https://doi.org/10.1093/sysbio/syy031). The following code was used in the paper cited above to generate simulations of two traits that follow the titular worst case scenario, and is reproduced from https://github.com/uyedaj/pnh-ms.

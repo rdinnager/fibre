@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 In this vignette we show how we ran the analyses included in the manuscript describing the PhyBRR method and package implementing it. We will test the method by analysing the body sizes of ~ 5000 mammal species across their phylogeny.
 
 ```{r load_data}
-library(phinla)
+library(fibre)
 library(readr)
 library(ape)
 library(phytools)
@@ -51,7 +51,7 @@ contMap(tree, tree_bm)
 length(tree$tip.label)
 
 ```
-Let's scale the branch lengths of our tree and our logged bodymass values and see if we can fit the simplest `phinla` model, which is a phylogenetic Bayesian ridge regression.
+Let's scale the branch lengths of our tree and our logged bodymass values and see if we can fit the simplest `fibre` model, which is a phylogenetic Bayesian ridge regression.
 
 ```{r fir_basic}
 tree_bm_scaled <- scale(tree_bm) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
@@ -62,7 +62,7 @@ tree_scaled$edge.length <- tree_scaled$edge.length / max(tree_scaled$edge.length
 
 ## see how long it take to fit as well
 timing <- system.time(
-fit <- phinla(phy = tree_scaled, data = tree_bm_scaled, obs_error = "est", verbose = FALSE)
+fit <- fibre(phy = tree_scaled, data = tree_bm_scaled, obs_error = "est", verbose = FALSE)
 )
 summary(fit)
 timing

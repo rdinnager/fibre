@@ -127,7 +127,7 @@ sim.test <- function (spp.rates, trait.rates, null.trait.rates, cor.method = "sp
 ```
 
 ```{r setup}
-library(phinla)
+library(fibre)
 ```
 
 First we simulate data following Cooney and Thomas ().
