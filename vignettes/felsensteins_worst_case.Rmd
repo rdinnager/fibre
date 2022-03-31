@@ -1,0 +1,128 @@
+---
+title: "Felsenstein's Worst Case Scenario"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Felsenstein's Worst Case Scenario}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(phinla)
+```
+
+This vignette shows an example of Felsenstein's Worst Case Scenario, as discussed thoroughly in Uyeda et al. 2018 (https://doi.org/10.1093/sysbio/syy031). The following code was used in the paper cited above to generate simulations of two traits that follow the titular worst case scenario, and is reproduced from https://github.com/uyedaj/pnh-ms.
+
+```{r uyeda_function}
+library(bayou)
+library(treeplyr)
+library(geiger)
+library(ape)
+
+felsTree <- function(n, stemL = 1, lambda = 1){
+  phy1 <- ape::reorder.phylo(sim.bdtree(b=1, d=0, stop="taxa", n=n), "postorder")
+  phy2 <- ape::reorder.phylo(sim.bdtree(b=1, d=0, stop="taxa", n=n), "postorder")
+  phy1 <- rescale(phy1, model="lambda", lambda)
+  phy2 <- rescale(phy1, model="lambda", lambda)
+  phy1$edge.length <- phy1$edge.length/max(branching.times(phy1))
+  phy2$edge.length <- phy2$edge.length/max(branching.times(phy2))
+  o <- list(phy1=phy1, phy2=phy2)
+  phy2$tip.label <- paste("s", (n+1):(2*n), sep="")
+  phy <- list(edge=NULL, Nnode=(n-1)*2 + 1, tip.label=c(phy1$tip.label, phy2$tip.label), edge.length=NULL)
+  phy1$edge[phy1$edge > n] <- phy1$edge[phy1$edge > n]+(n+1)
+  phy2$edge[phy2$edge > n] <- phy2$edge[phy2$edge > n]+2*n
+  phy2$edge[phy2$edge <= n] <- phy2$edge[phy2$edge <=n]+n
+
+  phy$edge <- rbind(phy1$edge, phy2$edge, c((2*n+1), (2*n+n+1)), c((2*n+1), (2*n+2)))
+  phy$edge.length <- c(phy1$edge.length, phy2$edge.length, rep(stemL, 2))
+  class(phy) <- class(o$phy1)
+  phy <- ape::reorder.phylo(phy, "postorder")
+  plot(phy)
+  return(phy)
+}
+
+```
+
+Here is an example of what this function produces:
+
+```{r run_it}
+phy0 <- felsTree(20, lambda=0)
+phy1 <- felsTree(20, lambda=1)
+
+P0 <- P1 <- NULL
+phy0$edge.length <- phy0$edge.length/(max(branching.times(phy0)))
+phy1$edge.length <- phy1$edge.length/(max(branching.times(phy1)))
+
+plot(phy0)
+plot(phy1)
+```
+
+These types of phylogenies lead to troubles with comparative methods that try and 'account for' phylogenetic structure when evaluating the relationship between two continuous traits, especially when along one of the two branches emerging from the root there is a large shift in phenotype for one of the traits.
+
+We can generate a simple simulation of this scenario (which is Felsenstein's Worse Case Scenario) as follows (again, using Uyeda's code copied from the above github URL):
+
+```{r sim}
+set.seed(5646)
+phy <- phy1
+S=10^1.5
+dat <- sim.char(phy, par=matrix(c(1, 0, 0, 1), ncol=2), model="BM", root=0)[,,1]
+dat2 <- dat
+#S <- 1
+dev <- MASS::mvrnorm(1, mu=c(0,0), Sigma=matrix(c(S, 0*S, 0*S, S), ncol=2))
+dat2[1:20, ] <- dat2[1:20,] + cbind(rep(dev[1], 20), rep(dev[2], 20))
+plot(dat2)
+
+summary(lm(dat2[, 2] ~ dat2[ , 1]))
+
+pic1 <- pic(dat2[,1], phy)
+pic2 <- pic(dat2[,2], phy)
+
+
+summary(lm(pic2 ~ pic1 - 1))
+```
+
+```{r pgls}
+library(caper)
+
+df <- as.data.frame(dat2)
+df$names <- rownames(dat2)
+phydat <- comparative.data(phy, df, "names", vcv = TRUE, vcv.dim = 3)
+
+test <- pgls(V2 ~ V1, phydat, lambda = "ML", delta = "ML", kappa = "ML")
+summary(test)
+
+```
+
+Now let's try setting up the model in `phybr`.
+
+```{r phybr_setup}
+
+df <- as.data.frame(dat2)
+df$tipnames <- rownames(dat2)
+
+res <- phybr(V2 ~ V1, phy, df, phy_match = "tipnames",
+             rate_order = "second_order",
+             hyper = list(prec = list(prior = "pc.prec", param = c(12, 0.01))))
+summary(res)
+
+rates <- get_rates(res, "mode")
+
+aces_preds <- get_aces(res, "mode")
+tip_preds <- get_tces(res, "mode")
+names(aces_preds) <- as.character(Ntip(phy) + 1:(Nnode(phy)))
+names(tip_preds) <- phy$tip.label
+
+contMap(phy, tip_preds, anc.states = aces_preds, method = "user")
+
+plot(tip_preds, df$V2)
+abline(0, 1)
+
+```
+

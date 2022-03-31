@@ -84,4 +84,6 @@ contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
 
 ```
 
-
+```{r birds}
+bird_tree <- read.nexus("extdata/HackettStage1_0001_1000_MCCTreeTargetHeights.nex")
+```
