@@ -1,3 +1,4 @@
 ^fibre\.Rproj$
 ^\.Rproj\.user$
 ^extdata$
+^README\.Rmd$

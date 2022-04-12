@@ -25,6 +25,7 @@ library(bayou)
 library(treeplyr)
 library(geiger)
 library(ape)
+library(phytools)
 
 felsTree <- function(n, stemL = 1, lambda = 1){
   phy1 <- ape::reorder.phylo(sim.bdtree(b=1, d=0, stop="taxa", n=n), "postorder")
@@ -108,7 +109,7 @@ df <- as.data.frame(dat2)
 df$tipnames <- rownames(dat2)
 
 res <- fibre(V2 ~ V1, phy, df, phy_match = "tipnames",
-             rate_order = "second_order",
+             rate_order = "second",
              hyper = list(prec = list(prior = "pc.prec", param = c(12, 0.01))))
 summary(res)
 

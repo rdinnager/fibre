@@ -7,8 +7,15 @@ Authors@R:
            role = c("aut", "cre"),
            email = "r.dinnage@gmail.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: Implements Phylogenetic Branch Regression models which allow for flexible models
-  of evolution along a phylogeny
+Description: Implements Phylogenetic Branch Regression models which allow for flexible and versatile models
+  of evolution along a phylogeny. The model can be used to detect shifts in rates of evolution along
+  branches. The model uses a continuous and linear model structure and so can be easily combined
+  with other non-phylogenetic statistical structures, as long as they are implemented using the R
+  package INLA. One major uses of this are to condition on phylogeny in a standard regression between
+  two traits, thus 'accounting' for phylogenetic structure in the response variable, similar to how
+  pgls is used but allowing for a more flexible phylogenetic model. This also allows the phylogenetic
+  model to be combined with the spatial models that INLA excels at (and with comparable flexibility 
+  to those spatial models).
 License: `use_mit_license()`, `use_gpl3_license()` or friends to
     pick a license
 Encoding: UTF-8
@@ -18,17 +25,22 @@ RoxygenNote: 7.1.2
 Suggests: 
     knitr,
     rmarkdown,
-    phytools,
     bench,
-    RPANDA
+    RPANDA,
+    testthat (>= 3.0.0),
+    INLA,
+    RRPhylo,
+    bayou,
+    slouch,
+    tidytree
 VignetteBuilder: knitr
 Imports: 
-    INLA,
     ape,
-    RRphylo,
     dplyr,
     igraph,
-    pbapply,
+    parallel,
     magrittr,
     fastmatch,
-    MCMCglmm
+    MCMCglmm,
+    phytools
+Config/testthat/edition: 3

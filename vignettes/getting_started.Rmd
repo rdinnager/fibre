@@ -1,0 +1,55 @@
+---
+title: "Getting Started with fibre"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with fibre}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(fibre)
+```
+
+Let's simulate some simple data.
+
+```{r sim_dat}
+set.seed(230045)
+## transition matrix for the discrete trait simulation
+Q <- matrix(c(-1, 1, 1, -1), 2, 2)
+## simulated tree
+tree <- pbtree(n = 100, scale = 1, d = 0.2)
+
+rates <- setNames(c(1, 20), 1:2)
+
+x <- simulate_traits(tree, rate_model = "discrete", temp_trend_rates = 0,
+                     rate_change = Q, rates = rates, internal = TRUE)
+
+```
+
+
+```{r scale_and_plot}
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+## save the simulated ancestral states
+aces_true <- x[(length(tree$tip.label) + 1L):length(x)]
+
+## now just get the simulated tip states for the model
+x <- x[1:length(tree$tip.label)]
+
+contMap(tree, x, anc.states = aces_true, method = "user")
+
+```
+
+```{r mod1}
+res <- fibre(x ~ root + p(tree))
+```
+
+

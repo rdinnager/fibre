@@ -54,7 +54,7 @@ x <- x[1:length(tree$tip.label)]
 contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
 
 
-inla_fit <- fibre(phy = tree, data = x, obs_error = "one", verbose = FALSE)
+inla_fit <- fibre(phy = tree, data = x, obs_error = 1, verbose = FALSE)
 summary(inla_fit)
 
 ```
