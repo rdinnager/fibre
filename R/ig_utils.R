@@ -72,28 +72,30 @@ make_root2tip <- function(phy,
 
   n_nodes <- length(igraph::V(ig))
 
-  if(return_nodes == "tips" || return_nodes == "both" || return_ages || order == "second" || order == "both") {
-    tips <- as.character(1:length(phy$tip.label))
-  }
+  tips <- as.character(1:length(phy$tip.label))
+  internal <- as.character((length(phy$tip.label) + 1):n_nodes)
 
-  if(return_nodes == "internal" || return_nodes == "both" || return_ages || order == "second" || order == "both") {
-    internal <- as.character((length(phy$tip.label) + 1):n_nodes)
-  }
-
-  if(return_nodes == "tips") {
-    nodes <- tips
-  }
-
-  if(return_nodes == "internal") {
-    nodes <- internal
-  }
-
-  if(return_nodes == "both" || return_ages || order == "second" || order == "both") {
-    nodes <- c(tips, internal)
-  }
+  # if(return_nodes == "tips" || return_nodes == "both" || return_ages || order == "second" || order == "both") {
+  #   tips <- as.character(1:length(phy$tip.label))
+  # }
+  #
+  # if(return_nodes == "internal" || return_nodes == "both" || return_ages || order == "second" || order == "both") {
+  #   internal <- as.character((length(phy$tip.label) + 1):n_nodes)
+  # }
+  #
+  # if(return_nodes == "tips") {
+  #   nodes <- tips
+  # }
+  #
+  # if(return_nodes == "internal") {
+  #   nodes <- internal
+  # }
+  #
+  # if(return_nodes == "both" || return_ages || order == "second" || order == "both") {
+  #   nodes <- c(tips, internal)
+  # }
 
   if(threads > 1) {
-    system.time({
     to <- c(tips, internal)
     splitter <- gl(threads, ceiling(length(to) / threads), length = length(to))
     groups <- split(to, splitter)
@@ -110,14 +112,14 @@ make_root2tip <- function(phy,
                         epath = NULL,
                         predecessors = NULL,
                         inbound_edges = NULL)
-    })
+
   } else {
     root_to_tip <- make_paths(ig, from = root, to = c(tips, internal))
   }
 
   if(order == "second" || order == "both" || return_ages) {
-    brlen <- igraph::vertex_attr(ig, "brlen", as.character(nodes))
-    names(brlen) <- as.character(nodes)
+    brlen <- igraph::vertex_attr(ig, "brlen", as.character(c(tips, internal)))
+    names(brlen) <- as.character(c(tips, internal))
     lens <- sapply(root_to_tip$vpath, function(x) c(sum(brlen[names(x[-length(x)])]),
                                                     brlen[names(x[length(x)])]))
     colnames(lens) <- names(brlen)

@@ -5,8 +5,6 @@
 #' a response with only a phylogenetic model (e.g. no covariates), in which case, the \code{data}
 #' argument must contain a vector or column matrix/data.frame with the response variable(s)
 #' (e.g. species traits).
-#' @param phy A \code{phylo} object containing the phylogeny to be used for the phylogenetic trait
-#' model.
 #' @param data A matrix or data.frame (or vector) containing the variables referred to in
 #' \code{formula} argument.
 #' @param phy_match This argument specifies how the data should be matched to the phylogeny. The
@@ -68,22 +66,11 @@
 #' @export
 #'
 #' @examples
-fibre <- function(formula = ~ 1, phy, data = NULL,
-                  phy_match = "auto",
+fibre <- function(formula = ~ 1, data = NULL,
                   family = "gaussian",
-                  rate_ident = TRUE,
                   rate_comb = NULL,
-                  rate_model = "iid",
-                  rate_order = "first",
-                  weights = NULL,
-                  rate_weights = NULL,
-                  aces = TRUE,
-                  constr = TRUE,
-                  hyper = NULL,
                   fit = TRUE,
                   obs_error = "est",
-                  root = "est",
-                  fixed_anc = NULL,
                   verbose = TRUE,
                   inla_verbose = FALSE,
                   threads = 1,
@@ -96,18 +83,15 @@ fibre <- function(formula = ~ 1, phy, data = NULL,
     inla_threads <- INLA::inla.getOption("num.threads")
   }
 
-  rate_model <- match.arg(rate_model,
-                          c("iid", "phylogenetic", "fixed"),
-                          several.ok = TRUE)
-
-  rate_order <- match.arg(rate_order,
-                          c("first", "second"),
-                          several.ok = TRUE)
-
   if(is.numeric(obs_error)) {
+    if(obs_error == 0) {
+      obs_error <- 10
+    } else {
+      obs_error <- log(1 / obs_error)
+    }
     fam_cont <- list(hyper = list(prec = list(prior = "gaussian",
-                                                         initial = obs_error,
-                                                         fixed = TRUE)))
+                                              initial = obs_error,
+                                              fixed = TRUE)))
   } else {
     if(is.character(obs_error) && obs_error == "est") {
       fam_cont <- list()
@@ -132,293 +116,108 @@ fibre <- function(formula = ~ 1, phy, data = NULL,
     message("Assembling model data and structure...")
   }
 
-
-  if(inherits(phy, "phylo")) {
-    message("Generating root-to-tip matrix...")
-    if(aces) {
-      phy_mat <- make_root2tip(phy, return_nodes = "both",
-                               return_type = "list",
-                               sparse = TRUE,
-                               order = rate_order,
-                               return_ages = "temporal" %in% rate_model,
-                               threads = threads)
-      if("temporal" %in% rate_model) {
-        ages <- attr(phy_mat, "ages")
-      }
-      aces_A_mat <- phy_mat[[2]]
-      phy_mat <- phy_mat[[1]]
-    } else {
-      phy_mat <- make_root2tip(phy, return_nodes = "tips",
-                               sparse = TRUE,
-                               order = rate_order,
-                               return_ages = "temporal" %in% rate_model,
-                               threads = threads)
-      if("temporal" %in% rate_model) {
-        ages <- attr(phy_mat, "ages")
-      }
-    }
-  } else {
-    phy_mat <- phy[[2]]
-    phy <- phy[[1]]
-    if(aces) {
-      aces_A_mat <- phy[[3]]
-    }
-  }
-
-  node_names <- colnames(phy_mat)
-  tip_names <- phy$tip.label
-
-  if(phy_match == "auto") {
-    if(is.null(dim(data))) {
-      if(is.null(names(data))) {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = phy$tip.label,
-                                         y = data))
-
-      } else {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = names(data),
-                                         y = data))
-      }
-
-    } else {
-      if(is.null(rownames(data))) {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = phy$tip.label) %>%
-                             dplyr::bind_cols(as.data.frame(data)))
-      } else {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = rownames(data)) %>%
-                             dplyr::bind_cols(as.data.frame(data)))
-      }
-    }
-  } else {
-    if(phy_match == "names") {
-      if(is.null(dim(data))) {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = names(data),
-                                         y = data))
-      } else {
-        data <- dplyr::tibble(node_name = tip_names) %>%
-          dplyr::left_join(dplyr::tibble(node_name = rownames(data)) %>%
-                             dplyr::bind_cols(as.data.frame(data)))
-      }
-    } else {
-      if(phy_match == "order") {
-        if(is.null(dim(data))) {
-          data <- dplyr::tibble(node_name = tip_names) %>%
-            dplyr::left_join(dplyr::tibble(node_name = phy$tip.label,
-                                           y = data))
-        } else {
-          data <- dplyr::tibble(node_name = tip_names) %>%
-            dplyr::left_join(dplyr::tibble(node_name = phy$tip.label) %>%
-                               dplyr::bind_cols(as.data.frame(data)))
-        }
-      } else {
-        if(!is.null(dim(data))) {
-          data <- as.data.frame(data)
-          if(!phy_match %in% colnames(data)) {
-            stop("Name provided in phy_match does not match any column names in data.")
-          } else {
-            data <- data %>%
-              dplyr::rename(node_name = dplyr::all_of(phy_match))
-            data <- dplyr::tibble(node_name = tip_names) %>%
-              dplyr::left_join(data)
-          }
-        } else {
-          stop('If phy_match does not equal "auto", "names", or "order", then data must
-               be a matrix or data.frame, not a vector')
-        }
-      }
-    }
-  }
-
-  te <- terms(formula)
-  if(attr(te, "response") == 0) {
-    vars <- setdiff(colnames(data), "node_name")
-    if(length(vars) > 1) {
-      formula <- update(formula, as.formula(paste0("cbind(", paste(vars, collapse = ", "),
-                                   ") ~ .")))
-    } else {
-      formula <- update(formula, y ~ .)
-    }
-  }
-
-  dat <- model.frame(formula, data, na.action = "na.pass")
-
-  if(is.matrix(dat[ , 1])) {
-    fits <- pbapply::pblapply(as.data.frame(dat[ , 1]), function(k) {
-      names(k) <- data$node_name
-      suppressMessages(fibre(formula = ~ 1, phy = c(list(phy, phy_mat),
-                                                     if(aces) list(aces_A_mat) else NULL),
-             data = k,
-             phy_match = phy_match,
-             family = family,
-             rate_model = rate_model,
-             fit = fit, aces = aces,
-             hyper = hyper,
-             obs_error = obs_error,
-             ...))
-    })
-    return(fits)
-  } else {
-    dat <- as.data.frame(dat)
-  }
-
-  namey <- data$node_name
-
-  dat <- dat %>%
-    dplyr::mutate(`(Intercept/root)` = 1)
-
-  tip_indexes <- 1:nrow(dat)
-  node_indexes <- 1:ncol(phy_mat)
-
-  A_mat <- phy_mat[namey, ]
-
-  resp <- all.vars(formula[[2]])
-
-  if(length(all.vars(formula)) > 1) {
-
-    other_vars <- setdiff(all.vars(formula), resp)
-
-    phy_stack <- INLA::inla.stack(data = list(y = dat[ , resp]),
-                                A = list(A_mat, 1, 1),
-                                effects = list(node_id = node_indexes,
-                                               root = dat$`(Intercept/root)`,
-                                               covars = dat[ , other_vars, drop = FALSE]),
-                                tag = "rates")
-
-  } else {
-
-    other_vars <- ""
-
-    phy_stack <- INLA::inla.stack(data = list(y = dat[ , resp]),
-                                A = list(A_mat, 1),
-                                effects = list(node_id = node_indexes,
-                                               root = dat$`(Intercept/root)`),
-                                tag = "rates")
-  }
-
-  if(aces) {
-
-    tces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(dat))),
-                                A = list(A_mat, 1),
-                                effects = list(node_id = node_indexes,
-                                               root = dat$`(Intercept/root)`),
-                                tag = "tces")
-
-    aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(aces_A_mat))),
-                                   A = list(aces_A_mat, 1),
-                                   effects = list(node_id = 1:ncol(aces_A_mat),
-                                                  root = rep(1, nrow(aces_A_mat))),
-                                   tag = "aces")
-
-    full_stack <- INLA::inla.stack(phy_stack, aces_stack, tces_stack)
-  } else {
-    full_stack <- phy_stack
-    rm(phy_stack)
-  }
-
-  if(is.null(hyper)) {
-    hyper <- "pc"
-  }
+  full_stack <- parse_formula(formula, data = data)
 
 
-  if(is.numeric(hyper)) {
-    prior <- list(prec = list(initial = hyper, fixed = TRUE))
-  } else {
-    if(is.character(hyper)) {
-      if(hyper == "pc") {
-        dat_sd <- sd(dat[ , resp])
-        l <- A_mat > 0
-        e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
-                         (sum(l) / length(phy$tip.label)))) * 3
-        message("Automatically choosing prior for rate variance: exponential with 1% of probability density above ", e_var)
-        prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
-      }
-    }
-    if(is.list(hyper)) {
-      prior <- hyper
-    }
-  }
-
-  obs_prior <- prior
-  if(hyper == "pc") {
-    obs_prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
-  }
-  fam_cont <- switch(obs_error,
-                     est = list(hyper = obs_prior),
-                     one = list(hyper = list(prec = list(prior = "gaussian",
-                                                         initial = 1,
-                                                         fixed = TRUE))),
-                     zero = list(hyper = list(prec = list(prior = "gaussian",
-                                                          initial = 10,
-                                                          fixed = TRUE))))
-
-
-  if(rate_model == "iid") {
-    inla_form <- y ~ 0 + root + f(node_id, model = "iid",
-                                                constr = FALSE,
-                                                hyper = prior)
+  # if(is.numeric(hyper)) {
+  #   prior <- list(prec = list(initial = hyper, fixed = TRUE))
+  # } else {
+  #   if(is.character(hyper)) {
+  #     if(hyper == "pc") {
+  #       dat_sd <- sd(dat[ , resp])
+  #       l <- A_mat > 0
+  #       e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
+  #                        (sum(l) / length(phy$tip.label)))) * 3
+  #       message("Automatically choosing prior for rate variance: exponential with 1% of probability density above ", e_var)
+  #       prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
+  #     }
+  #   }
+  #   if(is.list(hyper)) {
+  #     prior <- hyper
+  #   }
+  # }
+  #
+  # obs_prior <- prior
+  # if(hyper == "pc") {
+  #   obs_prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
+  # }
+  # fam_cont <- switch(obs_error,
+  #                    est = list(hyper = obs_prior),
+  #                    one = list(hyper = list(prec = list(prior = "gaussian",
+  #                                                        initial = 1,
+  #                                                        fixed = TRUE))),
+  #                    zero = list(hyper = list(prec = list(prior = "gaussian",
+  #                                                         initial = 10,
+  #                                                         fixed = TRUE))))
 
 
-  }
-
-  if(other_vars != "") {
-    inla_form <- reformulate(c(deparse(formula[[3]]),
-                               deparse(inla_form[[3]])),
-                             "y")
-  }
-
+  if(fit) {
   message("Fitting model...")
 
-  if(aces) {
-    fit_modes <- INLA::inla(inla_form,
-                       data = INLA::inla.stack.data(phy_stack),
-                       family = family,
-                       control.family = fam_cont,
-                       control.predictor = list(A = INLA::inla.stack.A(phy_stack),
-                                                compute = FALSE),
-                       verbose = inla_verbose,
-                       ...)
-
-    fit <- INLA::inla(inla_form,
-                      data = INLA::inla.stack.data(full_stack),
+    fit <- INLA::inla(as.formula(full_stack$formula),
+                      data = full_stack$data$data,
                       family = family,
-                      control.family = fam_cont,
-                      control.predictor = list(A = INLA::inla.stack.A(full_stack),
+                      control.predictor = list(A = full_stack$data$A,
                                                compute = TRUE),
-                      control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
                       verbose = inla_verbose,
+                      control.family = fam_cont,
                       ...)
+
   } else {
-    fit <- INLA::inla(inla_form,
-                      data = INLA::inla.stack.data(full_stack),
-                      family = family,
-                      control.predictor = list(A = INLA::inla.stack.A(full_stack),
-                                               compute = TRUE),
-                      verbose = inla_verbose)
+
+    fit <- NA
+
   }
+  attr(fit, "data_for_fit") <- full_stack
 
-  nam <- rownames(fit$summary.fitted.values)
-  rate_inds <- grep(".Predictor.", nam, fixed = TRUE)
-  root_ind <- which(!is.na(full_stack$effects$data[ , "root"]))
 
-  rate_index <- rate_inds[-root_ind]
+  # if(aces) {
+  #   fit_modes <- INLA::inla(inla_form,
+  #                      data = INLA::inla.stack.data(phy_stack),
+  #                      family = family,
+  #                      control.family = fam_cont,
+  #                      control.predictor = list(A = INLA::inla.stack.A(phy_stack),
+  #                                               compute = FALSE),
+  #                      verbose = inla_verbose,
+  #                      ...)
+  #
+  #   fit <- INLA::inla(inla_form,
+  #                     data = INLA::inla.stack.data(full_stack),
+  #                     family = family,
+  #                     control.family = fam_cont,
+  #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
+  #                                              compute = TRUE),
+  #                     control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
+  #                     verbose = inla_verbose,
+  #                     ...)
+  # } else {
+  #   fit <- INLA::inla(inla_form,
+  #                     data = INLA::inla.stack.data(full_stack),
+  #                     family = family,
+  #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
+  #                                              compute = TRUE),
+  #                     verbose = inla_verbose)
+  # }
 
-  node_pred_index <- grep(".APredictor.", nam, fixed = TRUE)
-  ace_ind <- INLA::inla.stack.index(full_stack, "aces")$data
-  tip_ind <- setdiff(node_pred_index, ace_ind)
-  tce_ind <- INLA::inla.stack.index(full_stack, "tces")$data
-
-  attr(fit, "stack") <- full_stack
-  attr(fit, "indexes") <- list(rates = rate_index,
-                               node_predictions = node_pred_index,
-                               aces = ace_ind,
-                               tips = tip_ind,
-                               tces = tce_ind)
-  attr(fit, "node_names") <- list(tips = namey,
-                                  nodes = if(aces) rownames(aces_A_mat) else NULL)
+  # nam <- rownames(fit$summary.fitted.values)
+  # rate_inds <- grep(".Predictor.", nam, fixed = TRUE)
+  # root_ind <- which(!is.na(full_stack$effects$data[ , "root"]))
+  #
+  # rate_index <- rate_inds[-root_ind]
+  #
+  # node_pred_index <- grep(".APredictor.", nam, fixed = TRUE)
+  # ace_ind <- INLA::inla.stack.index(full_stack, "aces")$data
+  # tip_ind <- setdiff(node_pred_index, ace_ind)
+  # tce_ind <- INLA::inla.stack.index(full_stack, "tces")$data
+  #
+  # attr(fit, "stack") <- full_stack
+  # attr(fit, "indexes") <- list(rates = rate_index,
+  #                              node_predictions = node_pred_index,
+  #                              aces = ace_ind,
+  #                              tips = tip_ind,
+  #                              tces = tce_ind)
+  # attr(fit, "node_names") <- list(tips = namey,
+  #                                 nodes = if(aces) rownames(aces_A_mat) else NULL)
 
   class(fit) <- c("fibre_results", class(fit))
 
@@ -451,12 +250,12 @@ fibre <- function(formula = ~ 1, phy, data = NULL,
 #' @examples
 p <- function(id,
               phy = NULL,
-              rate_model = c("iid", "phylogenetic", "fixed"),
+              rate_model = c("iid", "diverging", "fixed", "Brownian"),
               rate_order = c("first", "second"),
               weights = NULL,
               rate_weights = NULL,
               aces = TRUE,
-              constr = TRUE,
+              constr = FALSE,
               hyper = NULL,
               fixed_anc = NULL,
               rate_group = 1L,
@@ -527,25 +326,53 @@ p <- function(id,
     rtp_mat <- lapply(rtp_mat, function(x) t(t(x) * rate_weights))
   }
 
+  if(rate_model == "Brownian") {
+    Cmat <- make_Cmatrix(phy, standardise_var = FALSE)
+  } else {
+    Cmat <- NULL
+  }
+
   if(aces) {
-    rtp_mat_tces <- rtp_mat$tips
-    rtp_mat_aces <- rtp_mat$internal
 
-    tces_effect <- list(node_id = 1:ncol(rtp_mat_tces))
-    aces_effect <- list(node_id = 1:ncol(rtp_mat_aces))
+    if(rate_model == "Brownian") {
 
-    names(tces_effect) <- name
-    names(aces_effect) <- name
+      tces_effect <- list(node_id = 1:length(id))
+      aces_effect <- list(node_id = (length(id)+1):nrow(Cmat))
 
-    tces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_tces))),
-                                   A = list(rtp_mat_tces),
-                                   effects = tces_effect,
-                                   tag = "tces")
+      names(tces_effect) <- name
+      names(aces_effect) <- name
 
-    aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_aces))),
-                                   A = list(rtp_mat_aces),
-                                   effects = aces_effect,
-                                   tag = "aces")
+      tces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(id))),
+                                     A = list(1),
+                                     effects = tces_effect,
+                                     tag = "tces")
+
+      aces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(aces_effect[[1]]))),
+                                     A = list(1),
+                                     effects = aces_effect,
+                                     tag = "aces")
+    } else {
+
+      rtp_mat_tces <- rtp_mat$tips
+      rtp_mat_aces <- rtp_mat$internal
+
+      tces_effect <- list(node_id = 1:ncol(rtp_mat_tces))
+      aces_effect <- list(node_id = 1:ncol(rtp_mat_aces))
+
+      names(tces_effect) <- name
+      names(aces_effect) <- name
+
+      tces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_tces))),
+                                     A = list(rtp_mat_tces),
+                                     effects = tces_effect,
+                                     tag = "tces")
+
+      aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_aces))),
+                                     A = list(rtp_mat_aces),
+                                     effects = aces_effect,
+                                     tag = "aces")
+
+    }
 
   } else {
     tces_stack <- NULL
@@ -555,10 +382,18 @@ p <- function(id,
   rtp_mat <- rtp_mat$tips
   rtp_mat <- rtp_mat[id, ]
 
-  if(rate_model == "phylogenetic") {
-    Cmat <- make_Cmatrix(phy)
-  } else {
-    Cmat <- NULL
+  if(rate_model == "Brownian") {
+
+    if(is.character(id)) {
+      not_id <- which(!rownames(Cmat) %in% phy$tip.label)
+      re_ord <- c(id, rownames(Cmat)[not_id])
+    } else {
+      tips <- match(phy$tip.label, rownames(Cmat))
+      not_id <- setdiff(1:nrow(Cmat), tips)
+      re_ord <- c(tips, not_id)
+    }
+
+    Cmat <- Cmat[re_ord, re_ord]
   }
 
   if(constr) {
@@ -569,14 +404,19 @@ p <- function(id,
     extra_constr <- list(A = NULL, e = NULL)
   }
 
-  if(rate_model == "phylogenetic") {
-    rate_model <- "generic0"
-  }
-
   if(rate_model == "fixed") {
     data <- list(fixed_effect = rate_weights)
   } else {
-    data <- list(node_id = 1:ncol(rtp_mat))
+    if(rate_model == "Brownian") {
+      data <- list(node_id = 1:ape::Ntip(phy))
+    } else {
+      data <- list(node_id = 1:ncol(rtp_mat))
+    }
+  }
+
+  if(rate_model == "Brownian") {
+    rate_model <- "generic0"
+    rtp_mat <- list(1)
   }
 
   names(data) <- name

@@ -4,19 +4,33 @@ assert_inla <- function() {
   }
 }
 
-make_Cmatrix <- function(phy) {
-  tips <- 1:ape::Ntip(phy)
-  nodes <- (ape::Ntip(phy) + 1):(ape::Ntip(phy) + ape::Nnode(phy))
-  A <- MCMCglmm::inverseA(phy, scale = FALSE)
-  Amat <- A$Ainv
-  new_names <- rownames(Amat)
-  Anodes <- 1:(ape::Nnode(phy) - 1)
-  Atips <- seq_along(new_names)[-Anodes]
-  new_names[Anodes] <- nodes[as.numeric(gsub("Node", "", new_names[Anodes]))]
-  rownames(Amat) <- colnames(Amat) <- new_names
+make_Cmatrix <- function(phy, standardise_var = TRUE, tips_only = FALSE) {
 
-  gen_var <- 1 / exp(Matrix::determinant(Amat)$modulus[1]/ape::Ntip(phy))
-  Amat <- Amat * gen_var
+  if(tips_only) {
+
+    A <- MCMCglmm::inverseA(phy, scale = FALSE, nodes = "TIPS")
+    Amat <- A$Ainv
+
+  } else {
+
+    tips <- 1:ape::Ntip(phy)
+    nodes <- (ape::Ntip(phy) + 1):(ape::Ntip(phy) + ape::Nnode(phy))
+    A <- MCMCglmm::inverseA(phy, scale = FALSE)
+    Amat <- A$Ainv
+    new_names <- rownames(Amat)
+    Anodes <- 1:(ape::Nnode(phy) - 1)
+    Atips <- seq_along(new_names)[-Anodes]
+    new_names[Anodes] <- nodes[as.numeric(gsub("Node", "", new_names[Anodes]))]
+    rownames(Amat) <- colnames(Amat) <- new_names
+
+  }
+
+  if(standardise_var) {
+
+    gen_var <- 1 / exp(Matrix::determinant(Amat)$modulus[1]/ape::Ntip(phy))
+    Amat <- Amat * gen_var
+
+  }
 
   Amat
 }
@@ -153,7 +167,10 @@ parse_formula <- function(form, data = NULL) {
 
   final_form <- Reduce(paste, deparse(final_form))
 
-  list(formula = final_form, data = data_stack)
+  res <- list(formula = final_form, data = data_stack)
+  attr(res, "debug") <- datas
+
+  res
 
 }
 
@@ -281,6 +298,8 @@ get_vars <- function(form, envir = environment(form)) {
 
 check_data_dims <- function(y, dat, datas) {
 
+  equal <- TRUE
+
   y_n <- nrow(y)
 
   if(!is.null(dat)) {
@@ -291,7 +310,19 @@ check_data_dims <- function(y, dat, datas) {
 
   datas_n <- sapply(datas, function(x) nrow(x$rtp_mat))
 
-  equal <- length(unique(c(y_n, dat_n, datas_n))) == 1
+  if(any(sapply(datas_n, is.null))) {
+    others <- sapply(datas[sapply(datas_n, is.null)], function(x) length(x$rtp_mat))
+    if(all(others)) {
+      datas_n <- datas_n[!others]
+      equal <- TRUE
+    } else {
+      equal <- FALSE
+    }
+  }
+
+  if(equal) {
+    equal <- length(unique(c(y_n, dat_n, datas_n))) == 1
+  }
 
   if(!equal) {
     stop("There is a mismatch of dimension in the model. Implied number of rows are response: ",

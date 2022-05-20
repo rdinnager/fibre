@@ -6,19 +6,15 @@
 \usage{
 fibre(
   formula = ~1,
-  phy,
   data = NULL,
-  phy_match = "auto",
   family = "gaussian",
-  rate_model = "ridge",
-  rate_order = c("first_order", "second_order"),
+  rate_comb = NULL,
   fit = TRUE,
-  aces = TRUE,
-  hyper = NULL,
   obs_error = "est",
-  root = "est",
   verbose = TRUE,
   inla_verbose = FALSE,
+  threads = 1,
+  inla_threads = NULL,
   ...
 )
 }
@@ -29,21 +25,8 @@ a response with only a phylogenetic model (e.g. no covariates), in which case, t
 argument must contain a vector or column matrix/data.frame with the response variable(s)
 (e.g. species traits).}
 
-\item{phy}{A \code{phylo} object containing the phylogeny to be used for the phylogenetic trait
-model.}
-
 \item{data}{A matrix or data.frame (or vector) containing the variables referred to in
 \code{formula} argument.}
-
-\item{phy_match}{This argument specifies how the data should be matched to the phylogeny. The
-default \code{"auto"}, will match by names or rownames if they exist in \code{data}, or match
-by order if no names are present. You can also explicitly specify how to match (recommended).
-Option include "names", to match by names (throwing an error if they aren't present), "order", to
-match by ordering (element or rows in \code{data} are in the same order as \code{phy$tip.label}),
-or any length 1 character vector that refers to a column name in \code{data}, containing a character
-vector. In this case, this character vector will be used to match the data to the tip labels in
-\code{phy}. This is the recommended best way, as it is the most compatible with "tidy" principles,
-making sure species names are treated as data and stay associated with related data.}
 
 \item{family}{Family for the distribution of tip errors. Default is "gaussian", but can be any
 supported by \code{inla}. See \code{names(inla.models()$likelihood)} for a list of possibilities
@@ -54,6 +37,30 @@ linked to the data through a standard transformation. As an example, a \code{"bi
 with binary response will have a latent gaussian trait that represents the probability of the tip
 traits being a one as opposed to a zero and will be transformed using a logit function (by default)
 to keep the probability between 0 and 1.}
+
+\item{verbose}{Whether to print information about the progress of \code{fiber}}
+
+\item{inla_verbose}{Whether \code{\link[INLA:inla]{INLA::inla()}} should be run in verbose mode.}
+
+\item{threads}{Number of threads to use to parallelize computation of the root to
+matrix (default: 1). This can speed things up quite a bit for large trees, but
+also tends to use a lot of memory, because the entire tree must be copied to
+each thread.}
+
+\item{inla_threads}{How many threads should the inla fitting process use?
+Default is \code{INLA::inla.getOption("num.threads")}. See \code{\link[INLA:inla]{INLA::inla()}} for how to set this correctly.}
+
+\item{...}{Additional arguments to be passed to \code{\link[INLA:inla]{INLA::inla()}}}
+
+\item{phy_match}{This argument specifies how the data should be matched to the phylogeny. The
+default \code{"auto"}, will match by names or rownames if they exist in \code{data}, or match
+by order if no names are present. You can also explicitly specify how to match (recommended).
+Option include "names", to match by names (throwing an error if they aren't present), "order", to
+match by ordering (element or rows in \code{data} are in the same order as \code{phy$tip.label}),
+or any length 1 character vector that refers to a column name in \code{data}, containing a character
+vector. In this case, this character vector will be used to match the data to the tip labels in
+\code{phy}. This is the recommended best way, as it is the most compatible with "tidy" principles,
+making sure species names are treated as data and stay associated with related data.}
 
 \item{rate_model}{The model to use for the evolutionary rate variation along the phylogeny
 (in other words, the choice of prior for rates). Current choices are:
@@ -78,12 +85,6 @@ are the signed rate of evolution along each branch. If \code{"second_order"} rat
 the rate of rate change, that is we model rates of evolution along a branch as the rate
 of the parent branch plus some deviation from this rate: the parameters of the model are these
 rate deviations instead of the rates themselves.}
-
-\item{verbose}{Whether to print information about the progress of \code{fiber}}
-
-\item{inla_verbose}{Whether \code{\link[INLA:inla]{INLA::inla()}} should be run in verbose mode.}
-
-\item{...}{Additional arguments to be passed to \code{\link[INLA:inla]{INLA::inla()}}}
 }
 \value{
 
