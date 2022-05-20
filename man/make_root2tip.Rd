@@ -9,8 +9,10 @@ make_root2tip(
   return_nodes = c("tips", "internal", "both"),
   return_type = c("matrix", "list"),
   return_ages = FALSE,
-  order = c("first_order", "second_order"),
-  sparse = TRUE
+  return_parents = TRUE,
+  order = "first",
+  sparse = TRUE,
+  threads = 1
 )
 }
 \arguments{
@@ -37,7 +39,7 @@ the tips (which should all be the same for a time-tree).}
 
 \item{order}{Can be \code{"first_order"} or \code{"second_order"}, specifying whether to return
 the root-to-tip matrix in a first order or a second order specification. See documentation
-of \code{fibre()} for a description of the difference.}
+of \code{\link[=fibre]{fibre()}} for a description of the difference.}
 
 \item{sparse}{Should the returned root-to-tip matrix use a sparse matrix representation?
 If \code{FALSE} a regular dense matrix will be returned. The sparse matrix representation is
@@ -45,6 +47,9 @@ recommended, especially for large trees. Beyond a certain size of tree, only a
 sparse return will work, a dense matrix will exhaust all memory. Most root-to-tip
 matrices are quite sparse, and so can represent very large trees where dense
 matrices cannot (how sparse exactly depends on the shape of the tree).}
+
+\item{return_parent}{If \code{TRUE}, the parent node, matching the root to tip matrix columns,
+will be returned as an attribute \code{"parents"}.}
 }
 \value{
 A \code{matrix} if \code{sparse = FALSE}, or a \code{Matrix::dgCMatrix} otherwise.

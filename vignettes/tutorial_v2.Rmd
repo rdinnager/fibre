@@ -1,0 +1,240 @@
+---
+title: "tutorial"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+`fibre` is a minimal package for modelling traits along phylogenies using the `INLA` package. We will demonstrate how it works by fitting a model on some simulated data. Let's simulate a simple univariate continuous character that has two distinct rates of evolution on the tree. We first simulate a two-state discrete characater evolving on the tree, then evolve a continuous traits with rates determined by this character. The following code is taken directly from this chapter of Luk J. Harmon's online book (link).
+
+```{r sim_data}
+library(fibre)
+library(phytools)
+library(RRphylo)
+library(dplyr)
+
+set.seed(230045)
+## transition matrix for the discrete trait simulation
+Q <- matrix(c(-1, 1, 1, -1), 2, 2)
+## simulated tree
+tree <- pbtree(n = 100, scale = 1, d = 0.2)
+
+rates <- setNames(c(1, 20), 1:2)
+
+x <- simulate_traits(tree, rate_model = "discrete", temp_trend_rates = 0,
+                     rate_change = Q, rates = rates, internal = TRUE)
+
+# test <- simulate_traits(tree, rate_model = "continuous", temp_trend = -0.5, 
+#                         rate_change = 1, internal = TRUE, anc = c(0, 1),
+#                         nsim = 1, log_rates = TRUE)
+
+# contMap(tree, test[1:length(tree$tip.label)], anc.states = test[(length(tree$tip.label) + 1L):length(test)], method = "user")
+
+
+```
+
+Okay, let's fit the most basic model in `fibre` and compare it to what we get with `RRphylo`. As a first step, it is always a good idea to standardise the response variable to improve convergence and comparability.
+
+```{r fit_model}
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+aces_true <- x[(length(tree$tip.label) + 1L):length(x)]
+
+x <- x[1:length(tree$tip.label)]
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+
+prec.prior <- list(prec = list(prior = "gaussian", param = c(log(2), 10000), initial = log(2), fixed = FALSE))
+
+inla_fit <- fibre(x ~ p(tree, hyper = prec.prior))
+summary(inla_fit)
+
+prec.prior <- list(prec = list(prior = "pc.prec", param = c(1, 0.01)))
+
+fit1 <- fibre(x ~ p(tree, hyper = prec.prior), control.compute = list(waic = TRUE))
+fit2 <- fibre(x ~ p(tree, rate_model = "Brownian", hyper = prec.prior), fit = TRUE, inla_verbose = FALSE,
+              control.compute = list(waic = TRUE))
+
+ids <- 1:nrow(test)
+fittest <- inla(x ~ f(ids, model = "generic0", Cmatrix = test),
+                data = list(x = x, ids = ids), control.predictor = list(compute = TRUE))
+
+summary(fittest)
+
+fit1 <- fibre(x ~ p(tree), control.compute = list(waic = TRUE))
+tree2 <- tree
+tree2$edge.length <- tree2$edge.length^2
+fit2 <- fibre(x ~ p(tree2, rate_model = "Brownian"),
+              control.compute = list(waic = TRUE))
+
+gls_mod <- gls(x ~ 1,  
+               correlation = corBrownian(phy = tree))
+summary(gls_mod)
+```
+
+Now for `RRphylo`:
+
+```{r fit_RR}
+RR_fit <- RRphylo(tree, x)
+n_node <- length(tree$tip.label) + tree$Nnode
+
+plot(cbind(RR_fit$rates[-1], inla_fit$summary.random$phy_iid_frst$mode))
+
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit, "mode")))
+```
+
+Now fit this using Brownian motion.
+
+```{r brownian}
+brown_aces <- fastAnc(tree, x)
+brown_aces <- fit1$summary.fitted.values$mean[123:364]
+brown_aces <- c(x, aces_true[-1])
+brown_aces <- c(brown_aces[1:122], 0, brown_aces[123:242])
+brown_rates <- apply(tree$edge - Ntip(tree), 1, function(x) brown_aces[x[2]] - brown_aces[x[1]])
+brown_rates <- apply(tree$edge, 1, function(x) brown_aces[x[2]] - brown_aces[x[1]])
+brown_rates[sapply(brown_rates, function(x) length(x) > 1)] <- NA
+brown_rates <- unlist(brown_rates) / tree$edge.length
+```
+
+Let's try fixing the lambda parameter to what `RRphylo` chose.
+
+```{r lambfa_fix}
+prec.prior <- list(prec = list(prior = "gaussian", param = c(log(RR_fit$lambda), 10000), initial = log(RR_fit$lambda), fixed = FALSE))
+obs_error <- sd(x - RR_fit$predicted.phenotype)
+inla_fit2 <- fibre(x ~ p(tree, hyper = prec.prior), control.compute = list(waic = TRUE), obs_error = obs_error)
+summary(inla_fit2)
+
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit2, "mode")))
+abline(0, 1)
+
+inla_fit2 <- fibre(phy = tree, data = x, obs_error = "est", hyper = RR_fit$lambda,
+                   verbose = FALSE)
+summary(inla_fit2)
+
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit2, "mode")))
+abline(0, 1)
+```
+
+```{r full_fit}
+inla_fit3 <- fibre(phy = tree, data = x, obs_error = "est",
+                   verbose = FALSE)
+summary(inla_fit3)
+
+plot(cbind(RR_fit$rates[-1], get_rates(inla_fit3, "mode")))
+```
+```{r aces_1}
+aces_preds <- get_aces(inla_fit3, "mode")
+plot(aces_true, aces_preds)
+
+plot(aces_true, RR_fit$aces[ , 1])
+```
+```{r tips_1}
+tip_preds <- get_tips(inla_fit3, "mode")
+plot(x, tip_preds)
+
+plot(x, RR_fit$predicted.phenotype[ , 1])
+
+names(tip_preds) <- names(x)
+names(aces_preds) <- names(aces_true)
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+contMap(tree, tip_preds, anc.states = aces_preds, method = "user")
+contMap(tree, RR_fit$predicted.phenotype %>% apply(1, function(x) x), 
+        anc.states = RR_fit$aces %>% apply(1, function(x) x), method = "user")
+
+```
+
+```{r sd_plot}
+aces_sd <- get_aces(inla_fit3, "sd")
+tip_sd <- get_tips(inla_fit3, "sd")
+
+names(tip_sd) <- names(x)
+names(aces_sd) <- names(aces_true)
+
+contMap(tree, tip_sd, anc.states = aces_sd, method = "user")
+
+```
+
+```{r weird_thing}
+get_rate_var <- function(RR_fit) {
+  betas <- RR_fit$rates
+  L <- RR_fit$tip.path
+  t <- RR_fit$tree
+  Rvar <- array()
+          for (i in 1:Ntip(t)) {
+              ace.tip <- betas[match(names(which(L[i, ] != 0)), 
+                  rownames(betas)), ]
+              mat = as.matrix(dist(ace.tip))
+              Rvar[i] <- sum(mat[row(mat) == col(mat) + 1])
+          }
+  var(Rvar)
+}
+get_rate_var(RR_fit)
+```
+```{r br_effect}
+tree_long <- tree
+tree_long$edge.length <- tree_long$edge.length * 111
+RR_fit_long <- RRphylo(tree_long, x)
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+contMap(tree, RR_fit_long$predicted.phenotype %>% apply(1, function(x) x), 
+        anc.states = RR_fit_long$aces %>% apply(1, function(x) x), method = "user")
+RR_fit_long$lambda
+get_rate_var(RR_fit_long)
+```
+```{r opposite}
+Q <- matrix(c(-1, 1, 1, -1), 2, 2)
+## simulated tree
+tree <- pbtree(n = 100, scale = 1)
+## simulate discrete character history
+tree <- sim.history(tree, Q, anc = "1")
+## plot discrete character history on the tree
+plotSimmap(tree, setNames(c("blue", "red"), 1:2), pts = F)
+
+x <- sim.rates(tree, setNames(c(20, 1), 1:2), internal = TRUE)
+
+tree$edge.length <- tree$edge.length * 200
+
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+aces_true <- x[(length(tree$tip.label) + 1L):length(x)]
+
+x <- x[1:length(tree$tip.label)]
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+
+
+inla_fit_o <- fibre(phy = tree, data = x, obs_error = "est", verbose = FALSE)
+summary(inla_fit_o)
+
+RR_fit_o <- RRphylo(tree, x)
+plot(cbind(RR_fit_o$rates[-1], inla_fit_o$summary.fitted.values$mode[200:397]))
+
+ace_ind <- INLA::inla.stack.index(attr(inla_fit_o, "stack"), "aces")$data
+ace_preds <- inla_fit_o$summary.fitted.values$mode[ace_ind]
+plot(aces_true, ace_preds)
+plot(aces_true, RR_fit_o$aces[ , 1])
+
+tip_ind <- 1:length(tree$tip.label)
+tip_preds <- inla_fit_o$summary.fitted.values$mode[tip_ind]
+plot(x, tip_preds)
+plot(x, RR_fit_o$predicted.phenotype[ , 1])
+
+names(tip_preds) <- names(x)
+names(ace_preds) <- names(aces_true)
+
+contMap(tree, x[1:length(tree$tip.label)], anc.states = aces_true, method = "user")
+contMap(tree, tip_preds, anc.states = ace_preds, method = "user")
+contMap(tree, RR_fit_o$predicted.phenotype %>% apply(1, function(x) x), 
+        anc.states = RR_fit_o$aces %>% apply(1, function(x) x), method = "user")
+
+
+```

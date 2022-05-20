@@ -1,0 +1,48 @@
+---
+title: "Phylogenetic Slopes and Intercepts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Phylogenetic Slopes and Intercepts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette shows how we can use `fibre` to model a situation where we have a response that we want to model as a linear regression across species, with an intercept and a slope based on a predictor measured at the species level, and we want the intercept and slope coefficients to be treated as a type of hypothetical "trait" than can evolve on the phylogeny. This is conceptually the same idea as present in Uyeda et al (), except that instead of use a reversible jump type model where the intercept and slope change suddenly on the tree, we use the continuous framework of `fibre`, where every branch of the tree can have its own rate but we use shrinkage on the rates so that most will be small except where the data tells us they should be large. We will use the data provided by Uyeda et al. () and compare our results to theirs.
+
+```{r setup}
+library(fibre)
+library(readr)
+library(ape)
+library(dplyr)
+library(phytools)
+
+uyeda_dat <- read_csv("extdata/vertData.csv")
+uyeda_tree <- read.tree("extdata/vertTree.tre")
+colnames(uyeda_dat)[1] <- "species"
+
+## standardise data
+uyeda_dat <- uyeda_dat %>%
+  mutate(lnBMR_st = (lnBMR - mean(lnBMR)) / sd(lnBMR),
+         lnMass_st = (lnBMR - mean(lnMass)) / sd(lnMass))
+
+## standardise branch lengths
+uyeda_tree$edge.length <- uyeda_tree$edge.length / max(nodeHeights(uyeda_tree))
+
+```
+
+
+```{r fit_model}
+test <- fibre(lnBMR_st ~ endo + lnMass_st + p(species, uyeda_tree, rate_order = "second") + 
+                p(species, uyeda_tree, rate_order = "second", weights = lnMass_st),
+              data = uyeda_dat,
+              inla_verbose = TRUE,
+              control.inla = list(int.strategy = "eb"))
+summary(test)
+```
