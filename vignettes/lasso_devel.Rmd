@@ -1,0 +1,127 @@
+---
+title: "Let's try some LASSOing"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r development, include=FALSE}
+library(testthat)
+library(usethis)
+```
+
+```{r development-load}
+# Load already included functions if relevant
+pkgload::load_all(export_all = FALSE)
+```
+
+Okay well I am going to be trying out the {fusen} style of vignette driven development on this package now. I will use this vignette to sort out how to do the LASSO based phylogenetic model in `{fibre}`.
+
+First, let's get some data to work with.
+
+```{r development-bird_dat}
+library(ape)
+library(readr)
+library(dplyr)
+library(glmnet)
+
+bird_tree <- read.nexus("extdata/HackettStage1_0001_1000_MCCTreeTargetHeights.nex")
+bird_dat <- read_csv("extdata/AVONET3_BirdTree.csv")
+
+bird_dat <- bird_dat %>%
+  mutate(species = gsub(" ", "_", Species3))
+```
+
+Next we extract the root to tip matrix using existing `{fibre}`. We will be trying out the 'second order' style first, which gives a matrix that will represent deviations in trait evolution at each node (a random 'trend' model).
+
+```{r development-rtp}
+library(makemyprior)
+library(Matrix)
+
+bird_tree2 <- bird_tree
+bird_tree2$edge.length <- sqrt(bird_tree2$edge.length)
+rtp <- make_root2tip(bird_tree2, order = "second")
+
+scaling <- sqrt(typical_variance(as.matrix(rtp %*% t(rtp))))
+rtp <- rtp / scaling
+
+```
+
+Now to format the data to work with `{lars}` or `{glmnet}`
+
+```{r development-format_data}
+library(glmnet)
+library(sAIC)
+
+bird_dat <- bird_dat[bird_dat$species %in% bird_tree$tip.label, ]
+y <- log(bird_dat$Mass)
+x <- rtp[match(bird_dat$species, rownames(rtp)), ]
+
+AIC.glmnet <- function(glm_fit) {
+  chisqLR <- glm_fit$nulldev - deviance(glm_fit)
+
+  chisqLR - 2*glm_fit$df
+}
+
+crits <- function(fit, x, y){
+  
+  coef <- coef(fit)
+  df <- fit$df
+  n <- length(y)
+  
+  yhat <- cbind(1, x) %*% coef
+  residuals <- (y - yhat)
+  mse <- colMeans(residuals^2)
+  sse <- colSums(residuals^2)
+
+  nvar <- df + 1
+  bic <- n * log(mse) + nvar * log(n)
+  aic <- n * log(mse) + 2*nvar
+  aicc <- aic + (2 * nvar * (nvar+1)) / (n - nvar - 1)
+  hqc <- n * log(mse) + 2 * nvar * log(log(n))
+  
+  list(bic = bic, aic = aic, aicc = aicc, hqc = hqc)
+}
+
+
+system.time({
+  test2 <- glmnet(x, y, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.0000001)
+  aics <- crits(test2, x, y)
+})
+
+system.time({
+  test3 <- cv.glmnet(x, y, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.0000001, nfolds = 25)
+})
+```
+
+# My function
+
+```{r function-skeleton}
+#' skeleton Title
+#'
+#' @return 1
+#' @export
+#'
+#' @examples
+skeleton <- function() {
+  1
+}
+```
+
+```{r examples-skeleton}
+skeleton()
+```
+
+```{r tests-skeleton}
+test_that("skeleton works", {
+
+})
+```
+
+
+```{r development-inflate, eval=FALSE}
+# Run but keep eval=FALSE to avoid infinite loop
+# Execute in the console directly
+fusen::inflate(flat_file = "dev/flat_skeleton.Rmd", vignette_name = "Go further")
+```
+
