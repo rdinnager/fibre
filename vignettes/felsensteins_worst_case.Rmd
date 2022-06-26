@@ -96,7 +96,7 @@ df <- as.data.frame(dat2)
 df$names <- rownames(dat2)
 phydat <- comparative.data(phy, df, "names", vcv = TRUE, vcv.dim = 3)
 
-test <- pgls(V2 ~ V1, phydat, lambda = "ML", delta = "ML", kappa = "ML")
+test <- pgls(V2 ~ V1, phydat, lambda = "ML", kappa = "ML")
 summary(test)
 
 ```
@@ -108,9 +108,10 @@ Now let's try setting up the model in `fibre`.
 df <- as.data.frame(dat2)
 df$tipnames <- rownames(dat2)
 
-res <- fibre(V2 ~ V1, phy, df, phy_match = "tipnames",
-             rate_order = "second",
-             hyper = list(prec = list(prior = "pc.prec", param = c(12, 0.01))))
+phy2 <- phy
+phy2$edge.length <- sqrt(phy2$edge.length)
+
+res <- fibre(V2 ~ V1 + p(tipnames, phy2, rate_order = "first") + p(tipnames, phy2, rate_order = "second"), data = df)
 summary(res)
 
 rates <- get_rates(res, "mode")

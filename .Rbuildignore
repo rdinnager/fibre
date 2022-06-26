@@ -3,3 +3,4 @@
 ^extdata$
 ^README\.Rmd$
 ^testing$
+^testing\results$

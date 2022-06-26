@@ -26,6 +26,8 @@ library(dplyr)
 library(glmnet)
 
 bird_tree <- read.nexus("extdata/HackettStage1_0001_1000_MCCTreeTargetHeights.nex")
+bt_res <- read_rds("extdata/rateShiftInformation.RDS")
+bird_tree <- bt_res$Phylogeny
 bird_dat <- read_csv("extdata/AVONET3_BirdTree.csv")
 
 bird_dat <- bird_dat %>%
@@ -34,16 +36,57 @@ bird_dat <- bird_dat %>%
 
 Next we extract the root to tip matrix using existing `{fibre}`. We will be trying out the 'second order' style first, which gives a matrix that will represent deviations in trait evolution at each node (a random 'trend' model).
 
+```{r plot_rtp}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+rtp <- make_root2tip(bird_tree2)
+
+plot_rtp <- function(rtp, values = FALSE) {
+ 
+  rtp_df <- as.data.frame(as.matrix(rtp)) %>%
+    mutate(Tip = rownames(rtp)) %>%
+    pivot_longer(cols = -Tip,
+                 names_to = "Node",
+                 values_to = "Length")
+  
+ p <- ggplot(rtp_df) +
+    geom_raster(aes(Node, Tip, fill = Length)) +
+    scale_fill_viridis_c() +
+    ylab("") +
+    theme_minimal() +
+    theme(axis.text = element_blank(),
+          axis.title = element_blank(),
+          legend.title = element_text(size = 28),
+          legend.text = element_text(size = 22))
+ 
+ if(values) {
+  p <- p + 
+     geom_text(aes(Node, Tip, label = Length), colour = "white", size = 8)
+ }
+ 
+ p
+ 
+}
+
+pdf("test.pdf", height = 20, width = 30)
+plot_rtp(rtp)
+dev.off()
+
+
+```
+
 ```{r development-rtp}
 library(makemyprior)
 library(Matrix)
 
 bird_tree2 <- bird_tree
 bird_tree2$edge.length <- sqrt(bird_tree2$edge.length)
-rtp <- make_root2tip(bird_tree2, order = "second")
+rtp <- make_root2tip(bird_tree2, order = "first")
 
-scaling <- sqrt(typical_variance(as.matrix(rtp %*% t(rtp))))
-rtp <- rtp / scaling
+#scaling <- sqrt(typical_variance(as.matrix(rtp %*% t(rtp))))
+#rtp <- rtp / scaling
 
 ```
 
@@ -52,68 +95,322 @@ Now to format the data to work with `{lars}` or `{glmnet}`
 ```{r development-format_data}
 library(glmnet)
 library(sAIC)
+library(selectiveInference)
 
 bird_dat <- bird_dat[bird_dat$species %in% bird_tree$tip.label, ]
-y <- log(bird_dat$Mass)
 x <- rtp[match(bird_dat$species, rownames(rtp)), ]
 
-AIC.glmnet <- function(glm_fit) {
-  chisqLR <- glm_fit$nulldev - deviance(glm_fit)
+crits <- function(fit, x, y, alpha = 1){
 
-  chisqLR - 2*glm_fit$df
-}
-
-crits <- function(fit, x, y){
-  
-  coef <- coef(fit)
+  lambda <- fit$lambda
   df <- fit$df
   n <- length(y)
+
+  if(alpha == 0){
+    xs = x
+    I = diag(ncol(x))
+    xx = t(xs)%*%xs
+    for(i in 1:length(lambda)){
+      aux = solve(xx + I * lambda[i] * n)
+      df[i] = sum(diag(xs%*%aux%*%t(xs)))
+    }
+
+
+  }
+
+  coef <- coef(fit)
   
-  yhat <- cbind(1, x) %*% coef
+  if(is.list(coef)) {
+    yhat <- lapply(coef, function(b) cbind(1, x) %*% b)
+    yhat <- do.call(rbind, yhat)
+    y <- as.vector(y)
+    #print(dim(yhat))
+    #print(dim(y))
+  } else {
+    yhat <- cbind(1, x) %*% coef
+  }
+  
   residuals <- (y - yhat)
   mse <- colMeans(residuals^2)
   sse <- colSums(residuals^2)
 
   nvar <- df + 1
-  bic <- n * log(mse) + nvar * log(n)
-  aic <- n * log(mse) + 2*nvar
+  bic <- 2 * n * log(mse) + nvar * log(n)
+  aic <- 2 * n * log(mse) + 2*nvar
   aicc <- aic + (2 * nvar * (nvar+1)) / (n - nvar - 1)
-  hqc <- n * log(mse) + 2 * nvar * log(log(n))
+  #hqc <- n * log(mse) + 2 * nvar * log(log(n))
+
+  sigma <- sqrt(sse / (n-df-1))
+
+  tLL <- fit$nulldev - fit$nulldev * (1 - fit$dev.ratio)
+  k <- df
+  aicc2 <- -tLL + 2 * k + 2 * k * (k + 1) / (n - k - 1)
+  aic2 <- -tLL + 2 * k
+  bic2 <- log(n) * k - tLL
+
+  rate_est <- (sigma^2) / (lambda * n)
+
+  list(bic = bic, aic = aic, aicc = aicc, sigma = sigma, df = df,
+       mse = mse, aicc2 = aicc2, bic2 = bic2, aic2 = aic2, rate_est = rate_est)
+}
+
+vars <- c("Beak.Length_Culmen", "Beak.Length_Nares", "Beak.Width", "Beak.Depth", "Tarsus.Length", "Wing.Length", "Kipps.Distance", "Secondary1", "Hand-Wing.Index", "Tail.Length", "Mass", "Habitat", "Habitat.Density", "Migration", "Trophic.Level", "Trophic.Niche", "Primary.Lifestyle")
+
+library(GGally)
+ggpairs(bird_dat[ , vars])
+
+cont_vars <- c("Beak.Length_Culmen", "Beak.Length_Nares", "Beak.Width", "Beak.Depth", "Tarsus.Length", "Wing.Length", "Kipps.Distance", "Secondary1", "Hand-Wing.Index", "Tail.Length", "Mass")
+
+y_log <- log(bird_dat$Mass + 1) 
+y <- bird_dat$Mass 
+
+edges_nums <- c((Ntip(bird_tree) + 2):(Ntip(bird_tree) + Nnode(bird_tree)), 1:Ntip(bird_tree))
+edge_ord <- match(edges_nums, bird_tree$edge[ , 2])
+lens <- bird_tree$edge.length[edge_ord]
   
-  list(bic = bic, aic = aic, aicc = aicc, hqc = hqc)
+system.time({
+  mass_log <- glmnet(x, y_log, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.00001 / nrow(x),
+                  penalty.factor = lens)
+  aics <- crits(mass_log, x, y_log)
+})
+
+best_mod <- which.min(aics$aic2)
+best_lam <- mass_log$lambda[best_mod]
+aics$rate_est[best_mod] * 2
+
+rtp_all <- make_root2tip(bird_tree, "both")
+preds <- predict(mass_log, s = best_lam, newx = rtp_all)
+tip_preds <- predict(mass_log, s = best_lam, newx = x)
+
+rates <- coef(mass_log, s = best_lam)[-1]
+nonzero <- which(rates != 0)
+nonzero_edge <- bird_tree$edge[edge_ord, ][nonzero, ]
+nonzero_edge <- edge_ord[nonzero]
+nonzero_node <- bird_tree$edge[nonzero_edge, 1]
+
+nonzero_rates <- log(abs(rates[nonzero]) + 1)
+
+plot_traits(bird_tree, preds, direction = "upwards", ftype = "off")
+edgelabels(edge = nonzero_edge, pch = 21, col = "black", bg = "white",
+           cex = nonzero_rates)
+
+plot(aics$aic2 ~ log(aics$rate_est * 2), type = "l")
+
+aic_df <- tibble(AIC = aics$aic2, `Global Rate Parameter` = aics$rate_est * 2) %>%
+  mutate(good = ifelse(AIC - min(AIC) <= 2, "deltaAIC <= 2", "deltaAIC > 2"))
+ggplot(aic_df, aes(`Global Rate Parameter`, AIC)) +
+  geom_path(size = 1.5) +
+  geom_point(data = aic_df %>% filter(good == "deltaAIC <= 2"),
+             colour = "red") +
+  scale_x_log10() +
+  theme_minimal() +
+  theme(axis.title = element_text(size = 32),
+        axis.text = element_text(size = 22))
+
+plot_traits(bird_tree, preds, type = "fan")
+plot(y_log ~ tip_preds)
+
+pred_df <- tibble(`log Body Mass (observed)` = y_log,
+                  `log Body Mass (predicted)` = tip_preds)
+
+ggplot(pred_df, aes(`log Body Mass (predicted)`, `log Body Mass (observed)`)) +
+  geom_point() +
+  geom_abline(slope = 1, size = 1.5, colour = "grey30") +
+  theme_minimal()
+
+ggplot(pred_df, aes(`log Body Mass (predicted)`, `log Body Mass (observed)`)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(slope = 1, size = 1.5, colour = "grey30") +
+  theme_minimal() +
+  coord_equal() +
+  theme(axis.title = element_text(size = 32),
+        axis.text = element_text(size = 22))
+
+ggplot(pred_df, aes(`log Body Mass (predicted)`, `log Body Mass (observed)`)) +
+  geom_hex() +
+  geom_abline(slope = 1, size = 1.5, colour = "grey30") +
+  theme_minimal()
+
+
+
+plot_traits <- function(phy, trait_vals, ...) {
+  x <- trait_vals[1:ape::Ntip(phy)]
+  names(x) <- rownames(trait_vals)[1:ape::Ntip(phy)]
+  phytools::contMap(phy, x,
+                    anc.states = trait_vals[setdiff(1:length(trait_vals), 1:ape::Ntip(phy))],
+                    method = "user", ...)
 }
 
 
 system.time({
-  test2 <- glmnet(x, y, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.0000001)
-  aics <- crits(test2, x, y)
-})
-
-system.time({
   test3 <- cv.glmnet(x, y, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.0000001, nfolds = 25)
 })
+
+best_lambda <- test2$lambda[which.min(aics$aicc)]
+coefs <- coef(test2, s = best_lambda)
+plot(coefs)
+rownames(coefs)[which(coefs > 0)]
+
+
+beak_traits <- bird_dat[ , c("Beak.Length_Culmen", "Beak.Length_Nares", "Beak.Width", "Beak.Depth")]
+beak_traits <- scale(log(beak_traits + 1))
+ggpairs(as.data.frame(beak_traits)) +
+  theme_minimal()
+
+system.time({
+  beak_log <- glmnet(x, beak_traits, standardize = FALSE, nlambda = 1000, lambda.min.ratio = 0.00001 / nrow(x),
+                  penalty.factor = lens,
+                  family = "mgaussian")
+  aics <- crits(beak_log, x, beak_traits)
+})
+
+best_mod <- which.min(aics$aic2)
+best_lam <- mass_log$lambda[best_mod]
+aics$rate_est[best_mod] * 2
+
+rtp_all <- make_root2tip(bird_tree, "both")
+preds <- predict(beak_log, s = best_lam, newx = rtp_all)
+tip_preds <- predict(beak_log, s = best_lam, newx = x)
+
+rates <- lapply(coef(beak_log, s = best_lam), function(x) x[-1])
+rates <- do.call(cbind, rates)
+nonzero <- which(rates[ , 1] != 0)
+
+rates_st <- rates[nonzero, ]
+rates_st <- rates_st / sqrt(rowSums(rates_st^2))
+
+ggpairs(as.data.frame(rates_st),
+        upper = list(continuous = "density", combo = "box_no_facet", discrete = "count", na = "na"),) +
+  theme_minimal()
+
+library(ks)
+kd <- kde(rates_st)
+commonness <- predict(kd, x = rates_st)
+least <- which(commonness <= 0.4)
+rates[nonzero, ][least, ]
+
+ggpairs(as.data.frame(rates_st[least, ]))
+
+plot(bird_tree, show.tip.label = FALSE)
+
+#nonzero_edge <- bird_tree$edge[edge_ord, ][nonzero, ][least, ]
+least_nonzero_edge <- edge_ord[nonzero][least]
+least_nonzero_node <- bird_tree$edge[least_nonzero_edge, 2]
+
+nodelabels(node = least_nonzero_node, pch = 21, col = "black", bg = "red", cex = 2)
+edgelabels(edge = least_nonzero_edge, pch = 21, col = "black", bg = "red")
+
+nonzero_rates <- log(abs(rates[nonzero]) + 1)
+
 ```
+
+```{r bayestraits_compare}
+
+
+```
+
+Here I am going to develop some functions to simulate from various phylogenetic branch regression models based on ridge, student-t, lasso, and horseshoe regression.
 
 # My function
 
-```{r function-skeleton}
-#' skeleton Title
+```{r function-fibre_sim}
+#' Simulate from a phylogenetic branch regression
 #'
 #' @return 1
 #' @export
 #'
 #' @examples
-skeleton <- function() {
-  1
+fibre_sim <- function(phy, rate_dist = c("gaussian", "student-t", "laplacian", "horseshoe"), 
+                     order = c("first", "second"), global_rate = 1, rtp = NULL) {
+  
+  rate_dist <- match.arg(rate_dist)
+  order <- match.arg(order)
+  
+  n <- ape::Nedge(phy)
+  
+  if(is.null(rtp)) {
+    rtp <- make_root2tip(phy, "both", order = order)
+  }
+  
+  lambda <- switch(rate_dist,
+                   gaussian = 1,
+                   `student-t` = 1 / rgamma(n, 1, 1),
+                   laplacian = rexp(n, 2),
+                   horseshoe = abs(rcauchy(n))^2)
+  
+  beta <- rnorm(n, 0, lambda * global_rate)
+  beta <- beta / sqrt(phy$edge.length)
+  
+  trait_vals <- rtp %*% matrix(beta, ncol = 1)
+  
+  trait_vals
+  
 }
+
+plot_traits <- function(phy, trait_vals, ...) {
+  trait_vals <- sign(trait_vals) * sqrt(abs(trait_vals))
+  x <- trait_vals[1:ape::Ntip(phy)]
+  names(x) <- rownames(trait_vals)[1:ape::Ntip(phy)]
+  phytools::contMap(phy, x,
+                    anc.states = trait_vals[setdiff(1:length(trait_vals), 1:ape::Ntip(phy))],
+                    method = "user", ...)
+}
+
+set.seed(3021122)
+
+tree <- pbtree(n = 100, scale = 5)
+plot(tree)
+
+dev.off()
+old <- par(mfrow = c(2, 2))
+
+gauss <- fibre_sim(tree, rate_dist = "gaussian", order = "first")
+plot_traits(tree, gauss, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Gaussian (ridge) e.g. 'Brownian motion'")
+
+student <- fibre_sim(tree, rate_dist = "student-t", order = "first")
+plot_traits(tree, student, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Student-t")
+
+laplace <- fibre_sim(tree, rate_dist = "laplacian", order = "first")
+plot_traits(tree, laplace, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Laplacian (lasso)")
+
+hs <- fibre_sim(tree, rate_dist = "horseshoe", order = "first")
+plot_traits(tree, hs, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Horseshoe")
+
+par(old)
+
+dev.off()
+old <- par(mfrow = c(2, 2))
+
+gauss <- fibre_sim(tree, rate_dist = "gaussian", order = "second")
+plot_traits(tree, gauss, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Gaussian (ridge)")
+
+student <- fibre_sim(tree, rate_dist = "student-t", order = "second")
+plot_traits(tree, student, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Student-t")
+
+laplace <- fibre_sim(tree, rate_dist = "laplacian", order = "second")
+plot_traits(tree, laplace, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Laplacian (lasso)")
+
+hs <- fibre_sim(tree, rate_dist = "horseshoe", order = "second")
+plot_traits(tree, hs, fsize = c(0.001, 1), mar = c(3, 2, 2, 1))
+title("Horseshoe")
+
+par(old)
+
 ```
 
-```{r examples-skeleton}
+```{r examples-fibre_sim}
 skeleton()
 ```
 
-```{r tests-skeleton}
-test_that("skeleton works", {
+```{r tests-fibre_sim}
+test_that("fibre_sim works", {
 
 })
 ```

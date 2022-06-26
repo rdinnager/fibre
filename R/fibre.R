@@ -250,7 +250,7 @@ fibre <- function(formula = ~ 1, data = NULL,
 #' @examples
 p <- function(id,
               phy = NULL,
-              rate_model = c("iid", "diverging", "fixed", "Brownian"),
+              rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso", "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
               rate_order = c("first", "second"),
               weights = NULL,
               rate_weights = NULL,
@@ -260,15 +260,32 @@ p <- function(id,
               fixed_anc = NULL,
               rate_group = 1L,
               multivariate = 0,
-              name = NULL) {
+              name = NULL,
+              ancestral = FALSE,
+              kappa_correction = TRUE) {
 
 
   rate_model <- match.arg(rate_model)
   rate_order <- match.arg(rate_order)
 
+  if(rate_model %in% c("iid", "gaussian", "ridge")) {
+    rate_model <- "iid"
+  }
+
+  if(rate_model %in% c("lapacian", "lasso", "double-exponential")) {
+    rate_model <- "laplacian"
+  }
+
   if(inherits(id, "phylo")) {
+    id_implicit <- TRUE
     phy <- id
-    id <- seq_along(id$tip.label)
+    if(ancestral) {
+      id <- seq_len(ape::Ntip(phy) + ape::Nnode(phy))
+    } else {
+      id <- seq_along(phy$tip.label)
+    }
+  } else {
+    id_implicit <- FALSE
   }
 
   if(rate_model == "fixed" && is.null(rate_weights)) {
@@ -329,7 +346,11 @@ p <- function(id,
   if(rate_model == "Brownian") {
     Cmat <- make_Cmatrix(phy, standardise_var = FALSE)
   } else {
-    Cmat <- NULL
+    if(kappa_correction) {
+      Cmat <- make_Cmatrix(phy, attr(rtp_mat, "cols2edges"), rate_model = rate_model)
+    } else {
+      Cmat <- NULL
+    }
   }
 
   if(aces) {
@@ -429,6 +450,128 @@ p <- function(id,
        data = data,
        hyper = hyper,
        rate_model = rate_model,
-       name = gsub("phy_", "", name))
+       name = gsub("phy_", "", name),
+       ancestral = ancestral,
+       id_implicit = id_implicit)
 
 }
+
+
+parse_formula <- function(form, data = NULL, debug = FALSE) {
+
+  if(is.null(data)) {
+    data <- mget(all.vars(form), envir = environment(form),
+                 inherits = TRUE)
+  } else {
+    if(is.matrix(data)) {
+      if(!is.null(rownames(data))) {
+        node_names <- rownames(data)
+      } else {
+        node_names <- NA
+      }
+      data <- as.data.frame(data)
+      data$none_names <- node_names
+    }
+
+    if(is.list(data)) {
+      data <- process_data(data)
+    }
+
+    if(any(!all.vars(form) %in% names(data))) {
+      extra <- mget(all.vars(form)[!all.vars(form) %in% names(data)],
+                    envir = environment(form),
+                    ifnotfound = list(NULL),
+                    inherits = TRUE)
+      extra <- extra[sapply(extra, function(x) inherits(x, "phylo"))]
+      data <- c(data, extra)
+    }
+  }
+
+  y <- get_vars(update.formula(form, . ~ 0), data)
+  num_y <- ncol(y)
+
+  ts <- terms.formula(form, specials = c("p", "f", "root", "age"), keep.order = TRUE)
+  tls <- rownames(attr(ts, "factors"))
+  phybres <- tls[attr(ts, "specials")$p]
+  #fs <- tls[attr(ts, "specials")$f]
+  if(!is.null(attr(ts, "special")$root)) {
+    root_remove <- which(attr(ts, "term.labels") %in% tls[is.null(attr(ts, "special")$root)])
+    root <- TRUE
+  } else {
+    root_remove <- NULL
+    root <- FALSE
+  }
+
+  if(length(phybres) > 0) {
+    .fibre_env$multiple_order <- TRUE
+    datas <- lapply(phybres, function(x) eval(parse(text = x), envir = c(data, p = p)))
+    .fibre_env$multiple_order <- FALSE
+  }
+  to_remove <- c(which(attr(ts, "term.labels") %in% phybres),
+                 #which(attr(ts, "term.labels") %in% fs),
+                 root_remove,
+                 NULL)
+
+  if(length(to_remove) == length(attr(ts, "term.labels"))) {
+    if(root || attr(ts, "intercept") == 1) {
+      new_form <- ~ root
+    } else {
+      new_form <- ~ 0
+    }
+  } else {
+    new_form <- drop.terms(ts, to_remove, keep.response = TRUE)
+    new_form <- formula(delete.response(new_form))
+    if(root || attr(ts, "intercept") == 1) {
+      new_form <- update(new_form, ~ root + .)
+    } else {
+      new_form <- update(new_form, ~ 0 + .)
+    }
+  }
+
+  if(length(setdiff(all.vars(new_form), "root")) > 0) {
+    if(root || attr(ts, "intercept") == 1) {
+      data$root <- 1
+    }
+    dat <- get_vars(new_form, data)
+  } else {
+    if(root || attr(ts, "intercept") == 1) {
+      dat <- data.frame(root = rep(1, nrow(y)))
+    } else {
+      dat <- NULL
+    }
+  }
+
+  check_data_dims(y, dat, datas)
+
+  data_stack <- make_inla_stack(y, datas, dat)
+
+  parms <- data_stack$names
+  inla_forms <- mapply(generate_inla_formula,
+                       parms$effect_names,
+                       parms$rate_models,
+                       parms$Cmats,
+                       parms$hypers,
+                       parms$constrs)
+
+  resp <- all.vars(form[[2]])
+
+  final_form <- reformulate(c(all.vars(new_form[[2]]),
+                              sapply(inla_forms, function(x) Reduce(paste, deparse(x)))),
+                            resp,
+                            intercept = FALSE,
+                            env = emptyenv())
+
+  final_form <- Reduce(paste, deparse(final_form))
+
+  res <- list(formula = final_form, data = data_stack)
+  if(debug) {
+    attr(res, "debug") <- datas
+  }
+
+  class(res) <- "fibre_data"
+
+  res
+
+}
+
+

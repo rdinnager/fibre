@@ -219,6 +219,11 @@ make_root2tip <- function(phy,
     attr(rtp_mat, "parents") <- parents
   }
 
+  cols2edges <- match_cols2edges(colnames(rtp_mat), phy)
+  attr(rtp_mat, "cols2edges") <- cols2edges
+
+  #class(rtp_mat) <- c(class(rtp_mat), "fibre_root2tip")
+
   rtp_mat
 
 }
@@ -253,3 +258,10 @@ make_paths <- function(ig, from, to) {
   igraph::shortest_paths(ig, from = from, to = to, mode = "out", output = "vpath")
 }
 
+match_cols2edges <- function(col_names, phy) {
+  tips <- which(col_names %in% phy$tip.label)
+  col_names[tips] <- as.character(match(col_names[tips], phy$tip.label))
+  nodes <- as.integer(col_names)
+  edges <- match(nodes, phy$edge[ , 2])
+  edges
+}

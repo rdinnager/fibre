@@ -4,7 +4,15 @@ assert_inla <- function() {
   }
 }
 
-make_Cmatrix <- function(phy, standardise_var = TRUE, tips_only = FALSE) {
+make_Cmatrix <- function(phy, edges = NULL, standardise_var = TRUE, tips_only = FALSE, rate_model = NULL) {
+
+  if(!is.null(edges)) {
+    vars <- switch(rate_model,
+                   iid = 1 / phy$edge.length[edges],
+                   laplacian = 1 / sqrt(phy$edge.length[edges]),
+                   rep(1, length(edges)))
+    return(Matrix::Diagonal(length(edges), vars))
+  }
 
   if(tips_only) {
 
@@ -59,119 +67,6 @@ make_extraconstr <- function(phy, parents, order) {
     constr_e <- rep(0, nrow(constr_A))
 
     list(A = as.matrix(constr_A), e = constr_e)
-}
-
-parse_formula <- function(form, data = NULL) {
-
-  if(is.null(data)) {
-    data <- mget(all.vars(form), envir = environment(form),
-                 inherits = TRUE)
-  } else {
-    if(is.matrix(data)) {
-      if(!is.null(rownames(data))) {
-        node_names <- rownames(data)
-      } else {
-        node_names <- NA
-      }
-      data <- as.data.frame(data)
-      data$none_names <- node_names
-    }
-
-    if(is.list(data)) {
-      data <- process_data(data)
-    }
-
-    if(any(!all.vars(form) %in% names(data))) {
-      extra <- mget(all.vars(form)[!all.vars(form) %in% names(data)],
-                    envir = environment(form),
-                    ifnotfound = list(NULL),
-                    inherits = TRUE)
-      extra <- extra[sapply(extra, function(x) inherits(x, "phylo"))]
-      data <- c(data, extra)
-    }
-  }
-
-  y <- get_vars(update.formula(form, . ~ 0), data)
-  num_y <- ncol(y)
-
-  ts <- terms.formula(form, specials = c("p", "f", "root", "age"), keep.order = TRUE)
-  tls <- rownames(attr(ts, "factors"))
-  phybres <- tls[attr(ts, "specials")$p]
-  #fs <- tls[attr(ts, "specials")$f]
-  if(!is.null(attr(ts, "special")$root)) {
-    root_remove <- which(attr(ts, "term.labels") %in% tls[is.null(attr(ts, "special")$root)])
-    root <- TRUE
-  } else {
-    root_remove <- NULL
-    root <- FALSE
-  }
-
-  if(length(phybres) > 0) {
-    .fibre_env$multiple_order <- TRUE
-    datas <- lapply(phybres, function(x) eval(parse(text = x), envir = c(data, p = p)))
-    .fibre_env$multiple_order <- FALSE
-  }
-  to_remove <- c(which(attr(ts, "term.labels") %in% phybres),
-                 #which(attr(ts, "term.labels") %in% fs),
-                 root_remove,
-                 NULL)
-
-  if(length(to_remove) == length(attr(ts, "term.labels"))) {
-    if(root || attr(ts, "intercept") == 1) {
-      new_form <- ~ root
-    } else {
-      new_form <- ~ 0
-    }
-  } else {
-    new_form <- drop.terms(ts, to_remove, keep.response = TRUE)
-    new_form <- formula(delete.response(new_form))
-    if(root || attr(ts, "intercept") == 1) {
-      new_form <- update(new_form, ~ root + .)
-    } else {
-      new_form <- update(new_form, ~ 0 + .)
-    }
-  }
-
-  if(length(setdiff(all.vars(new_form), "root")) > 0) {
-    if(root || attr(ts, "intercept") == 1) {
-      data$root <- 1
-    }
-    dat <- get_vars(new_form, data)
-  } else {
-    if(root || attr(ts, "intercept") == 1) {
-      dat <- data.frame(root = rep(1, nrow(y)))
-    } else {
-      dat <- NULL
-    }
-  }
-
-  check_data_dims(y, dat, datas)
-
-  data_stack <- make_inla_stack(y, datas, dat)
-
-  parms <- data_stack$names
-  inla_forms <- mapply(generate_inla_formula,
-                       parms$effect_names,
-                       parms$rate_models,
-                       parms$Cmats,
-                       parms$hypers,
-                       parms$constrs)
-
-  resp <- all.vars(form[[2]])
-
-  final_form <- reformulate(c(all.vars(new_form[[2]]),
-                              sapply(inla_forms, function(x) Reduce(paste, deparse(x)))),
-                            resp,
-                            intercept = FALSE,
-                            env = emptyenv())
-
-  final_form <- Reduce(paste, deparse(final_form))
-
-  res <- list(formula = final_form, data = data_stack)
-  attr(res, "debug") <- datas
-
-  res
-
 }
 
 
