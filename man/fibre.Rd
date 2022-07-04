@@ -86,9 +86,6 @@ the rate of rate change, that is we model rates of evolution along a branch as t
 of the parent branch plus some deviation from this rate: the parameters of the model are these
 rate deviations instead of the rates themselves.}
 }
-\value{
-
-}
 \description{
 Phylogenetic Branch Regression (fibre)
 }

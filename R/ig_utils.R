@@ -265,3 +265,81 @@ match_cols2edges <- function(col_names, phy) {
   edges <- match(nodes, phy$edge[ , 2])
   edges
 }
+
+find_nearest_node_dist <- function(phy, from, to, use = c("steps", "length", "both")) {
+
+  use <- match.arg(use)
+
+  temp_phy <- phy
+  temp_phy$tip.label <- as.character(seq_along(temp_phy$tip.label))
+  temp_phy$node.label <- as.character(length(temp_phy$tip.label) +
+                                        seq_len(temp_phy$Nnode))
+
+
+  ig <- igraph::as.igraph(temp_phy, directed = TRUE)
+
+  if(!is.null(temp_phy$edge.length)) {
+    edges_subtending <- fastmatch::fmatch(as.numeric(names(igraph::V(ig))), temp_phy$edge[ , 2])
+    igraph::vertex_attr(ig, "brlen") <- temp_phy$edge.length[edges_subtending]
+    igraph::vertex_attr(ig, "brlen")[is.na(igraph::vertex_attr(ig, "brlen"))] <- 0
+  }
+
+  ## find root
+  # degs <- igraph::degree(ig, mode = "in")
+  # root <- names(degs)[degs == 0]
+
+  get_closest_dist <- function(tipward, rootward) {
+    if(tipward <= rootward) {
+      dist <- tipward
+    } else {
+      dist <- -rootward
+    }
+    dist
+  }
+
+  if(use == "steps" || use == "both") {
+    tipward_dists <- igraph::distances(ig, as.character(from), as.character(to), mode = "out")
+    rootward_dists <- igraph::distances(ig, as.character(from), as.character(to), mode = "in")
+    tipward_closest <- apply(tipward_dists, 1, which.min)
+    rootward_closest <- apply(rootward_dists, 1, which.min)
+    tipward_closest <- colnames(tipward_dists)[tipward_closest]
+    rootward_closest <- colnames(rootward_dists)[rootward_closest]
+    tipward_step_dist <- apply(tipward_dists, 1, min)
+    rootward_step_dist <- apply(rootward_dists, 1, min)
+
+    closest_dist <- mapply(get_closest_dist, tipward_step_dist, rootward_step_dist)
+  }
+
+  if(use == "length" || use == "both") {
+
+    weights <- igraph::vertex_attr(ig, "brlen")[igraph::tail_of(ig, igraph::E(ig))]
+
+    tipward_dists_l <- igraph::distances(ig, as.character(from), as.character(to), mode = "out", weights = weights)
+    rootward_dists_l <- igraph::distances(ig, as.character(from), as.character(to), mode = "in", weights = weights)
+    tipward_closest_l <- apply(tipward_dists_l, 1, which.min)
+    rootward_closest_l <- apply(rootward_dists_l, 1, which.min)
+    tipward_closest_l <- colnames(tipward_dists_l)[tipward_closest_l]
+    rootward_closest_l <- colnames(rootward_dists_l)[rootward_closest_l]
+    tipward_len_dist <- apply(tipward_dists_l, 1, min)
+    rootward_len_dist <- apply(rootward_dists_l, 1, min)
+
+    closest_dist_l <- mapply(get_closest_dist, tipward_len_dist, rootward_len_dist)
+
+  }
+
+  if(use == "steps") {
+    res <- closest_dist
+  }
+
+  if(use == "length") {
+    res <- closest_dist_l
+  }
+
+  if(use == "both") {
+    res <- list(steps = closest_dist,
+                length = closest_dist_l)
+  }
+
+  res
+
+}

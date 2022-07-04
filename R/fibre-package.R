@@ -21,4 +21,5 @@ NULL
   make_paths <<- memoise::memoise(make_paths)
   make_Cmatrix <<- memoise::memoise(make_Cmatrix)
   make_extraconstr <<- memoise::memoise(make_extraconstr)
+  root2tip_binary <<- memoise::memoise(root2tip_binary)
 }

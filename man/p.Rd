@@ -7,7 +7,8 @@
 p(
   id,
   phy = NULL,
-  rate_model = c("iid", "phylogenetic", "fixed"),
+  rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso",
+    "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
   rate_order = c("first", "second"),
   weights = NULL,
   rate_weights = NULL,
@@ -17,7 +18,9 @@ p(
   fixed_anc = NULL,
   rate_group = 1L,
   multivariate = 0,
-  name = NULL
+  name = NULL,
+  ancestral = FALSE,
+  kappa_correction = TRUE
 )
 }
 \arguments{
@@ -30,9 +33,6 @@ works if you know your data is already in the same order as your phylogeny's tip
 \item{phy}{A \link[ape:read.tree]{ape::phylo} object with the phylogeny to be used in the \code{phybre} model.}
 
 \item{fixed_anc}{}
-}
-\value{
-
 }
 \description{
 Phylogenetic Branch Random Effect. To be used in the \code{formula} argument to \code{fibre}.

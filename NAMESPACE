@@ -2,6 +2,7 @@
 
 export("%>%")
 export(fibre)
+export(fibre_data)
 export(get_aces)
 export(get_rates)
 export(get_tces)

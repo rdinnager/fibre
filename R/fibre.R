@@ -541,6 +541,22 @@ parse_formula <- function(form, data = NULL, debug = FALSE) {
     }
   }
 
+  res <- list(formula = form, new_form = new_form, y = y,  x = dat, re = datas)
+
+  class(res) <- "fibre_data"
+
+  res
+
+}
+
+get_inla_data <- function(dat) {
+
+  form <- dat$form
+  new_form <- dat$new_form
+  y <- dat$y
+  dat <- dat$dat
+  datas <- dat$datas
+
   check_data_dims(y, dat, datas)
 
   data_stack <- make_inla_stack(y, datas, dat)
@@ -564,14 +580,26 @@ parse_formula <- function(form, data = NULL, debug = FALSE) {
   final_form <- Reduce(paste, deparse(final_form))
 
   res <- list(formula = final_form, data = data_stack)
-  if(debug) {
-    attr(res, "debug") <- datas
-  }
-
-  class(res) <- "fibre_data"
-
-  res
 
 }
 
+#' Generate data formatted to fit a `fibre` model.
+#'
+#' @param formula Formula specifying a `fibre` model see details for more information
+#' @param data A data.frame or named list containing variables referenced in `formula`.
+#' The only variable that doesn't have to be in `data` is a `phylo` representing a
+#' phylogeny to be used in the [p()] function.
+#'
+#' @return A `fibre_data` object containing all data necessary to fit a fibre model using
+#' [fibre_fit()].
+#' @export
+#'
+#' @examples
+fibre_data <- function(formula = ~ 1, data = NULL) {
+
+   dat <- parse_formula(formula, data = data)
+
+   dat
+
+}
 
