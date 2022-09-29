@@ -1,9 +1,13 @@
-root2node <- function(phy, return_nodes = c("tips", "internal", "both"),
+root2node <- function(phy, return_nodes = c("tips", "all"),
                       order = c("first", "second")) {
 
   return_nodes <- match.arg(return_nodes)
   order <- match.arg(order)
 
+  if(return_nodes == "all") {
+    phy <- add_internal_tips(phy)
+  }
+  
   rtp_bin <- root2tip_binary(phy)
 
   edge_ord <- rev(ape::postorder(phy))
@@ -12,15 +16,9 @@ root2node <- function(phy, return_nodes = c("tips", "internal", "both"),
   rtp_bin <- rtp_bin[node_ord, ]
   rtp_bin <- rtp_bin[-1, ]
 
-  if(order == "second" || order == "both") {
+  if(order == "second") {
     node_to_tip <- apply_sparse_fun_mult(rtp_bin,
                                          function(x) rev(cumsum(x)))
-  }
-
-  if(return_nodes == "internal" || return_nodes == "both") {
-
-
-
   }
 
   rtp_bin <- Matrix::t(rtp_bin)
@@ -75,13 +73,13 @@ build_rtp <- function(paths, n_nodes, sparse = TRUE) {
 
 }
 
-apply_sparse_fun <- function(m, f) {
-  vapply(listCols(m), f, FUN.VALUE=0.0)
+apply_sparse_fun <- function(m, f, ...) {
+  vapply(listCols(m), f, FUN.VALUE=0.0, ...)
 }
 
-apply_sparse_fun_mult <- function(m, f) {
+apply_sparse_fun_mult <- function(m, f, ...) {
 
-  new_x <- lapply(listCols(m), f)
+  new_x <- lapply(listCols(m), f, ...)
   m2 <- m
   m2@x <- unlist(new_x)
   m2
@@ -153,4 +151,10 @@ get_internal_paths <- function(m) {
   node_m
 
 
+}
+
+add_internal_tips <- function(phy) {
+  node_labels <- length(phy$tip.label) + seq_len(phy$Nnode)
+  new_phy <- phangorn::add.tips(phy, as.character(node_labels),
+                                node_labels, 0)
 }

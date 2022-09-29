@@ -42,5 +42,9 @@ Imports:
     magrittr,
     fastmatch,
     MCMCglmm,
-    phytools
+    phytools,
+    phangorn,
+    PCMBase,
+    fuzzyjoin,
+    ivs
 Config/testthat/edition: 3
