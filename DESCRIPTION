@@ -6,7 +6,7 @@ Authors@R:
            family = "Dinnage",
            role = c("aut", "cre"),
            email = "r.dinnage@gmail.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+           comment = c(ORCID = "0000-0003-0846-2819"))
 Description: Implements Phylogenetic Branch Regression models which allow for flexible and versatile models
   of evolution along a phylogeny. The model can be used to detect shifts in rates of evolution along
   branches. The model uses a continuous and linear model structure and so can be easily combined
@@ -32,7 +32,8 @@ Suggests:
     RRPhylo,
     bayou,
     slouch,
-    tidytree
+    tidytree,
+    recipes
 VignetteBuilder: knitr
 Imports: 
     ape,
@@ -46,5 +47,11 @@ Imports:
     phangorn,
     PCMBase,
     fuzzyjoin,
-    ivs
+    ivs,
+    phyf (>= 0.0.0.9000),
+    hardhat,
+    rlang,
+    stats
 Config/testthat/edition: 3
+Remotes: 
+    rdinnager/phyf
