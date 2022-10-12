@@ -2,7 +2,7 @@
 % Please edit documentation in R/fibre.R
 \name{fibre_data}
 \alias{fibre_data}
-\title{Title}
+\title{Generate data formatted to fit a \code{fibre} model.}
 \usage{
 fibre_data(formula = ~1, data = NULL)
 }
@@ -18,5 +18,5 @@ A \code{fibre_data} object containing all data necessary to fit a fibre model us
 \code{\link[=fibre_fit]{fibre_fit()}}.
 }
 \description{
-Title
+Generate data formatted to fit a \code{fibre} model.
 }

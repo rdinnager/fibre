@@ -226,362 +226,362 @@ fibre <- function(formula = ~ 1, data = NULL,
 }
 
 
-#' Phylogenetic Branch Random Effect. To be used in the `formula` argument to `fibre`.
-#'
-#' @param id Character or integer vector with ids to match data to phylogeny. If character,
-#' elements are matched to tip labels in `phy`. If integer, they will treated as indexes into
-#' `phy$ip.label`. Can also be a [ape::phylo] object, in which case the `phy` argument is
-#' ignored, and the `id` will be an integer indexing the tip labels (in other words, this
-#' works if you know your data is already in the same order as your phylogeny's tip labels).
-#' @param phy A [ape::phylo] object with the phylogeny to be used in the `phybre` model.
-#' @param rate_model
-#' @param rate_order
-#' @param weights
-#' @param rate_weights
-#' @param predict_effects
-#' @param constr
-#' @param hyper
-#' @param multiple_order
-#' @param fixed_anc
-#'
-#' @return
-#' @export
-#'
-#' @examples
-p <- function(id,
-              phy = NULL,
-              rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso", "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
-              rate_order = c("first", "second"),
-              weights = NULL,
-              rate_weights = NULL,
-              aces = TRUE,
-              constr = FALSE,
-              hyper = NULL,
-              fixed_anc = NULL,
-              rate_group = 1L,
-              multivariate = 0,
-              name = NULL,
-              ancestral = FALSE,
-              kappa_correction = TRUE) {
-
-
-  rate_model <- match.arg(rate_model)
-  rate_order <- match.arg(rate_order)
-
-  if(rate_model %in% c("iid", "gaussian", "ridge")) {
-    rate_model <- "iid"
-  }
-
-  if(rate_model %in% c("lapacian", "lasso", "double-exponential")) {
-    rate_model <- "laplacian"
-  }
-
-  if(inherits(id, "phylo")) {
-    id_implicit <- TRUE
-    phy <- id
-    if(ancestral) {
-      id <- seq_len(ape::Ntip(phy) + ape::Nnode(phy))
-    } else {
-      id <- seq_along(phy$tip.label)
-    }
-  } else {
-    id_implicit <- FALSE
-  }
-
-  if(rate_model == "fixed" && is.null(rate_weights)) {
-    stop("rate_model of 'fixed' requires rate_weights to be specified")
-  }
-
-  rate_group <- as.integer(rate_group)
-
-  if(is.null(name)) {
-    name <- make_name(rate_model, rate_order, weights, rate_weights)
-  }
-
-  multiple_order <- .fibre_env$multiple_order
-
-  if(!is.null(rate_weights) && rate_weights == "age") {
-    age <- TRUE
-  } else {
-    age <- FALSE
-  }
-
-  if(multiple_order) {
-    rtp_mat <- make_root2tip(phy,
-                             return_nodes = "both",
-                             return_type = "list",
-                             order = "both",
-                             return_ages = age
-                             )
-    parents <- attr(rtp_mat, "parents")
-    if(age) {
-      ages <- attr(rtp_mat, "ages")
-    }
-    rtp_mat <- rtp_mat[[rate_order]]
-  } else {
-    rtp_mat <- make_root2tip(phy,
-                             return_nodes = "both",
-                             return_type = "list",
-                             order = rate_order,
-                             return_ages = age
-                             )
-    parents <- attr(rtp_mat, "parents")
-    if(age) {
-      ages <- attr(rtp_mat, "ages")
-    }
-  }
-
-  if(age) {
-    rate_weights <- ages
-  }
-
-  if(!is.null(weights)) {
-    rtp_mat <- lapply(rtp_mat, function(x) x * weights)
-  }
-
-  if(rate_model != "fixed" && !is.null(rate_weights)) {
-    rtp_mat <- lapply(rtp_mat, function(x) t(t(x) * rate_weights))
-  }
-
-  if(rate_model == "Brownian") {
-    Cmat <- make_Cmatrix(phy, standardise_var = FALSE)
-  } else {
-    if(kappa_correction) {
-      Cmat <- make_Cmatrix(phy, attr(rtp_mat, "cols2edges"), rate_model = rate_model)
-    } else {
-      Cmat <- NULL
-    }
-  }
-
-  if(aces) {
-
-    if(rate_model == "Brownian") {
-
-      tces_effect <- list(node_id = 1:length(id))
-      aces_effect <- list(node_id = (length(id)+1):nrow(Cmat))
-
-      names(tces_effect) <- name
-      names(aces_effect) <- name
-
-      tces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(id))),
-                                     A = list(1),
-                                     effects = tces_effect,
-                                     tag = "tces")
-
-      aces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(aces_effect[[1]]))),
-                                     A = list(1),
-                                     effects = aces_effect,
-                                     tag = "aces")
-    } else {
-
-      rtp_mat_tces <- rtp_mat$tips
-      rtp_mat_aces <- rtp_mat$internal
-
-      tces_effect <- list(node_id = 1:ncol(rtp_mat_tces))
-      aces_effect <- list(node_id = 1:ncol(rtp_mat_aces))
-
-      names(tces_effect) <- name
-      names(aces_effect) <- name
-
-      tces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_tces))),
-                                     A = list(rtp_mat_tces),
-                                     effects = tces_effect,
-                                     tag = "tces")
-
-      aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_aces))),
-                                     A = list(rtp_mat_aces),
-                                     effects = aces_effect,
-                                     tag = "aces")
-
-    }
-
-  } else {
-    tces_stack <- NULL
-    aces_stack <- NULL
-  }
-
-  rtp_mat <- rtp_mat$tips
-  rtp_mat <- rtp_mat[id, ]
-
-  if(rate_model == "Brownian") {
-
-    if(is.character(id)) {
-      not_id <- which(!rownames(Cmat) %in% phy$tip.label)
-      re_ord <- c(id, rownames(Cmat)[not_id])
-    } else {
-      tips <- match(phy$tip.label, rownames(Cmat))
-      not_id <- setdiff(1:nrow(Cmat), tips)
-      re_ord <- c(tips, not_id)
-    }
-
-    Cmat <- Cmat[re_ord, re_ord]
-  }
-
-  if(constr) {
-
-    extra_constr <- make_extraconstr(phy, parents, rate_order)
-
-  } else {
-    extra_constr <- list(A = NULL, e = NULL)
-  }
-
-  if(rate_model == "fixed") {
-    data <- list(fixed_effect = rate_weights)
-  } else {
-    if(rate_model == "Brownian") {
-      data <- list(node_id = 1:ape::Ntip(phy))
-    } else {
-      data <- list(node_id = 1:ncol(rtp_mat))
-    }
-  }
-
-  if(rate_model == "Brownian") {
-    rate_model <- "generic0"
-    rtp_mat <- list(1)
-  }
-
-  names(data) <- name
-
-  list(rtp_mat = rtp_mat,
-       tces_stack = tces_stack,
-       aces_stack = aces_stack,
-       Cmat = Cmat,
-       extra_constr = extra_constr,
-       data = data,
-       hyper = hyper,
-       rate_model = rate_model,
-       name = gsub("phy_", "", name),
-       ancestral = ancestral,
-       id_implicit = id_implicit)
-
-}
-
-
-parse_formula <- function(form, data = NULL, debug = FALSE) {
-
-  if(is.null(data)) {
-    data <- mget(all.vars(form), envir = environment(form),
-                 inherits = TRUE)
-  } else {
-    if(is.matrix(data)) {
-      if(!is.null(rownames(data))) {
-        node_names <- rownames(data)
-      } else {
-        node_names <- NA
-      }
-      data <- as.data.frame(data)
-      data$none_names <- node_names
-    }
-
-    if(is.list(data)) {
-      data <- process_data(data)
-    }
-
-    if(any(!all.vars(form) %in% names(data))) {
-      extra <- mget(all.vars(form)[!all.vars(form) %in% names(data)],
-                    envir = environment(form),
-                    ifnotfound = list(NULL),
-                    inherits = TRUE)
-      extra <- extra[sapply(extra, function(x) inherits(x, "phylo"))]
-      data <- c(data, extra)
-    }
-  }
-
-  y <- get_vars(update.formula(form, . ~ 0), data)
-  num_y <- ncol(y)
-
-  ts <- terms.formula(form, specials = c("p", "f", "root", "age"), keep.order = TRUE)
-  tls <- rownames(attr(ts, "factors"))
-  phybres <- tls[attr(ts, "specials")$p]
-  #fs <- tls[attr(ts, "specials")$f]
-  if(!is.null(attr(ts, "special")$root)) {
-    root_remove <- which(attr(ts, "term.labels") %in% tls[is.null(attr(ts, "special")$root)])
-    root <- TRUE
-  } else {
-    root_remove <- NULL
-    root <- FALSE
-  }
-
-  if(length(phybres) > 0) {
-    .fibre_env$multiple_order <- TRUE
-    datas <- lapply(phybres, function(x) eval(parse(text = x), envir = c(data, p = p)))
-    .fibre_env$multiple_order <- FALSE
-  }
-  to_remove <- c(which(attr(ts, "term.labels") %in% phybres),
-                 #which(attr(ts, "term.labels") %in% fs),
-                 root_remove,
-                 NULL)
-
-  if(length(to_remove) == length(attr(ts, "term.labels"))) {
-    if(root || attr(ts, "intercept") == 1) {
-      new_form <- ~ root
-    } else {
-      new_form <- ~ 0
-    }
-  } else {
-    new_form <- drop.terms(ts, to_remove, keep.response = TRUE)
-    new_form <- formula(delete.response(new_form))
-    if(root || attr(ts, "intercept") == 1) {
-      new_form <- update(new_form, ~ root + .)
-    } else {
-      new_form <- update(new_form, ~ 0 + .)
-    }
-  }
-
-  if(length(setdiff(all.vars(new_form), "root")) > 0) {
-    if(root || attr(ts, "intercept") == 1) {
-      data$root <- 1
-    }
-    dat <- get_vars(new_form, data)
-  } else {
-    if(root || attr(ts, "intercept") == 1) {
-      dat <- data.frame(root = rep(1, nrow(y)))
-    } else {
-      dat <- NULL
-    }
-  }
-
-  res <- list(formula = form, new_form = new_form, y = y,  x = dat, re = datas)
-
-  class(res) <- "fibre_data"
-
-  res
-
-}
-
-get_inla_data <- function(dat) {
-
-  form <- dat$form
-  new_form <- dat$new_form
-  y <- dat$y
-  dat <- dat$dat
-  datas <- dat$datas
-
-  check_data_dims(y, dat, datas)
-
-  data_stack <- make_inla_stack(y, datas, dat)
-
-  parms <- data_stack$names
-  inla_forms <- mapply(generate_inla_formula,
-                       parms$effect_names,
-                       parms$rate_models,
-                       parms$Cmats,
-                       parms$hypers,
-                       parms$constrs)
-
-  resp <- all.vars(form[[2]])
-
-  final_form <- reformulate(c(all.vars(new_form[[2]]),
-                              sapply(inla_forms, function(x) Reduce(paste, deparse(x)))),
-                            resp,
-                            intercept = FALSE,
-                            env = emptyenv())
-
-  final_form <- Reduce(paste, deparse(final_form))
-
-  res <- list(formula = final_form, data = data_stack)
-
-}
+#' #' Phylogenetic Branch Random Effect. To be used in the `formula` argument to `fibre`.
+#' #'
+#' #' @param id Character or integer vector with ids to match data to phylogeny. If character,
+#' #' elements are matched to tip labels in `phy`. If integer, they will treated as indexes into
+#' #' `phy$ip.label`. Can also be a [ape::phylo] object, in which case the `phy` argument is
+#' #' ignored, and the `id` will be an integer indexing the tip labels (in other words, this
+#' #' works if you know your data is already in the same order as your phylogeny's tip labels).
+#' #' @param phy A [ape::phylo] object with the phylogeny to be used in the `phybre` model.
+#' #' @param rate_model
+#' #' @param rate_order
+#' #' @param weights
+#' #' @param rate_weights
+#' #' @param predict_effects
+#' #' @param constr
+#' #' @param hyper
+#' #' @param multiple_order
+#' #' @param fixed_anc
+#' #'
+#' #' @return
+#' #' @export
+#' #'
+#' #' @examples
+#' p <- function(id,
+#'               phy = NULL,
+#'               rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso", "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
+#'               rate_order = c("first", "second"),
+#'               weights = NULL,
+#'               rate_weights = NULL,
+#'               aces = TRUE,
+#'               constr = FALSE,
+#'               hyper = NULL,
+#'               fixed_anc = NULL,
+#'               rate_group = 1L,
+#'               multivariate = 0,
+#'               name = NULL,
+#'               ancestral = FALSE,
+#'               kappa_correction = TRUE) {
+#' 
+#' 
+#'   rate_model <- match.arg(rate_model)
+#'   rate_order <- match.arg(rate_order)
+#' 
+#'   if(rate_model %in% c("iid", "gaussian", "ridge")) {
+#'     rate_model <- "iid"
+#'   }
+#' 
+#'   if(rate_model %in% c("lapacian", "lasso", "double-exponential")) {
+#'     rate_model <- "laplacian"
+#'   }
+#' 
+#'   if(inherits(id, "phylo")) {
+#'     id_implicit <- TRUE
+#'     phy <- id
+#'     if(ancestral) {
+#'       id <- seq_len(ape::Ntip(phy) + ape::Nnode(phy))
+#'     } else {
+#'       id <- seq_along(phy$tip.label)
+#'     }
+#'   } else {
+#'     id_implicit <- FALSE
+#'   }
+#' 
+#'   if(rate_model == "fixed" && is.null(rate_weights)) {
+#'     stop("rate_model of 'fixed' requires rate_weights to be specified")
+#'   }
+#' 
+#'   rate_group <- as.integer(rate_group)
+#' 
+#'   if(is.null(name)) {
+#'     name <- make_name(rate_model, rate_order, weights, rate_weights)
+#'   }
+#' 
+#'   multiple_order <- .fibre_env$multiple_order
+#' 
+#'   if(!is.null(rate_weights) && rate_weights == "age") {
+#'     age <- TRUE
+#'   } else {
+#'     age <- FALSE
+#'   }
+#' 
+#'   if(multiple_order) {
+#'     rtp_mat <- make_root2tip(phy,
+#'                              return_nodes = "both",
+#'                              return_type = "list",
+#'                              order = "both",
+#'                              return_ages = age
+#'                              )
+#'     parents <- attr(rtp_mat, "parents")
+#'     if(age) {
+#'       ages <- attr(rtp_mat, "ages")
+#'     }
+#'     rtp_mat <- rtp_mat[[rate_order]]
+#'   } else {
+#'     rtp_mat <- make_root2tip(phy,
+#'                              return_nodes = "both",
+#'                              return_type = "list",
+#'                              order = rate_order,
+#'                              return_ages = age
+#'                              )
+#'     parents <- attr(rtp_mat, "parents")
+#'     if(age) {
+#'       ages <- attr(rtp_mat, "ages")
+#'     }
+#'   }
+#' 
+#'   if(age) {
+#'     rate_weights <- ages
+#'   }
+#' 
+#'   if(!is.null(weights)) {
+#'     rtp_mat <- lapply(rtp_mat, function(x) x * weights)
+#'   }
+#' 
+#'   if(rate_model != "fixed" && !is.null(rate_weights)) {
+#'     rtp_mat <- lapply(rtp_mat, function(x) t(t(x) * rate_weights))
+#'   }
+#' 
+#'   if(rate_model == "Brownian") {
+#'     Cmat <- make_Cmatrix(phy, standardise_var = FALSE)
+#'   } else {
+#'     if(kappa_correction) {
+#'       Cmat <- make_Cmatrix(phy, attr(rtp_mat, "cols2edges"), rate_model = rate_model)
+#'     } else {
+#'       Cmat <- NULL
+#'     }
+#'   }
+#' 
+#'   if(aces) {
+#' 
+#'     if(rate_model == "Brownian") {
+#' 
+#'       tces_effect <- list(node_id = 1:length(id))
+#'       aces_effect <- list(node_id = (length(id)+1):nrow(Cmat))
+#' 
+#'       names(tces_effect) <- name
+#'       names(aces_effect) <- name
+#' 
+#'       tces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(id))),
+#'                                      A = list(1),
+#'                                      effects = tces_effect,
+#'                                      tag = "tces")
+#' 
+#'       aces_stack <- INLA::inla.stack(data = list(y = rep(NA, length(aces_effect[[1]]))),
+#'                                      A = list(1),
+#'                                      effects = aces_effect,
+#'                                      tag = "aces")
+#'     } else {
+#' 
+#'       rtp_mat_tces <- rtp_mat$tips
+#'       rtp_mat_aces <- rtp_mat$internal
+#' 
+#'       tces_effect <- list(node_id = 1:ncol(rtp_mat_tces))
+#'       aces_effect <- list(node_id = 1:ncol(rtp_mat_aces))
+#' 
+#'       names(tces_effect) <- name
+#'       names(aces_effect) <- name
+#' 
+#'       tces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_tces))),
+#'                                      A = list(rtp_mat_tces),
+#'                                      effects = tces_effect,
+#'                                      tag = "tces")
+#' 
+#'       aces_stack <- INLA::inla.stack(data = list(y = rep(NA, nrow(rtp_mat_aces))),
+#'                                      A = list(rtp_mat_aces),
+#'                                      effects = aces_effect,
+#'                                      tag = "aces")
+#' 
+#'     }
+#' 
+#'   } else {
+#'     tces_stack <- NULL
+#'     aces_stack <- NULL
+#'   }
+#' 
+#'   rtp_mat <- rtp_mat$tips
+#'   rtp_mat <- rtp_mat[id, ]
+#' 
+#'   if(rate_model == "Brownian") {
+#' 
+#'     if(is.character(id)) {
+#'       not_id <- which(!rownames(Cmat) %in% phy$tip.label)
+#'       re_ord <- c(id, rownames(Cmat)[not_id])
+#'     } else {
+#'       tips <- match(phy$tip.label, rownames(Cmat))
+#'       not_id <- setdiff(1:nrow(Cmat), tips)
+#'       re_ord <- c(tips, not_id)
+#'     }
+#' 
+#'     Cmat <- Cmat[re_ord, re_ord]
+#'   }
+#' 
+#'   if(constr) {
+#' 
+#'     extra_constr <- make_extraconstr(phy, parents, rate_order)
+#' 
+#'   } else {
+#'     extra_constr <- list(A = NULL, e = NULL)
+#'   }
+#' 
+#'   if(rate_model == "fixed") {
+#'     data <- list(fixed_effect = rate_weights)
+#'   } else {
+#'     if(rate_model == "Brownian") {
+#'       data <- list(node_id = 1:ape::Ntip(phy))
+#'     } else {
+#'       data <- list(node_id = 1:ncol(rtp_mat))
+#'     }
+#'   }
+#' 
+#'   if(rate_model == "Brownian") {
+#'     rate_model <- "generic0"
+#'     rtp_mat <- list(1)
+#'   }
+#' 
+#'   names(data) <- name
+#' 
+#'   list(rtp_mat = rtp_mat,
+#'        tces_stack = tces_stack,
+#'        aces_stack = aces_stack,
+#'        Cmat = Cmat,
+#'        extra_constr = extra_constr,
+#'        data = data,
+#'        hyper = hyper,
+#'        rate_model = rate_model,
+#'        name = gsub("phy_", "", name),
+#'        ancestral = ancestral,
+#'        id_implicit = id_implicit)
+#' 
+#' }
+#' 
+#' 
+#' parse_formula <- function(form, data = NULL, debug = FALSE) {
+#' 
+#'   if(is.null(data)) {
+#'     data <- mget(all.vars(form), envir = environment(form),
+#'                  inherits = TRUE)
+#'   } else {
+#'     if(is.matrix(data)) {
+#'       if(!is.null(rownames(data))) {
+#'         node_names <- rownames(data)
+#'       } else {
+#'         node_names <- NA
+#'       }
+#'       data <- as.data.frame(data)
+#'       data$none_names <- node_names
+#'     }
+#' 
+#'     if(is.list(data)) {
+#'       data <- process_data(data)
+#'     }
+#' 
+#'     if(any(!all.vars(form) %in% names(data))) {
+#'       extra <- mget(all.vars(form)[!all.vars(form) %in% names(data)],
+#'                     envir = environment(form),
+#'                     ifnotfound = list(NULL),
+#'                     inherits = TRUE)
+#'       extra <- extra[sapply(extra, function(x) inherits(x, "phylo"))]
+#'       data <- c(data, extra)
+#'     }
+#'   }
+#' 
+#'   y <- get_vars(update.formula(form, . ~ 0), data)
+#'   num_y <- ncol(y)
+#' 
+#'   ts <- terms.formula(form, specials = c("p", "f", "root", "age"), keep.order = TRUE)
+#'   tls <- rownames(attr(ts, "factors"))
+#'   phybres <- tls[attr(ts, "specials")$p]
+#'   #fs <- tls[attr(ts, "specials")$f]
+#'   if(!is.null(attr(ts, "special")$root)) {
+#'     root_remove <- which(attr(ts, "term.labels") %in% tls[is.null(attr(ts, "special")$root)])
+#'     root <- TRUE
+#'   } else {
+#'     root_remove <- NULL
+#'     root <- FALSE
+#'   }
+#' 
+#'   if(length(phybres) > 0) {
+#'     .fibre_env$multiple_order <- TRUE
+#'     datas <- lapply(phybres, function(x) eval(parse(text = x), envir = c(data, p = p)))
+#'     .fibre_env$multiple_order <- FALSE
+#'   }
+#'   to_remove <- c(which(attr(ts, "term.labels") %in% phybres),
+#'                  #which(attr(ts, "term.labels") %in% fs),
+#'                  root_remove,
+#'                  NULL)
+#' 
+#'   if(length(to_remove) == length(attr(ts, "term.labels"))) {
+#'     if(root || attr(ts, "intercept") == 1) {
+#'       new_form <- ~ root
+#'     } else {
+#'       new_form <- ~ 0
+#'     }
+#'   } else {
+#'     new_form <- drop.terms(ts, to_remove, keep.response = TRUE)
+#'     new_form <- formula(delete.response(new_form))
+#'     if(root || attr(ts, "intercept") == 1) {
+#'       new_form <- update(new_form, ~ root + .)
+#'     } else {
+#'       new_form <- update(new_form, ~ 0 + .)
+#'     }
+#'   }
+#' 
+#'   if(length(setdiff(all.vars(new_form), "root")) > 0) {
+#'     if(root || attr(ts, "intercept") == 1) {
+#'       data$root <- 1
+#'     }
+#'     dat <- get_vars(new_form, data)
+#'   } else {
+#'     if(root || attr(ts, "intercept") == 1) {
+#'       dat <- data.frame(root = rep(1, nrow(y)))
+#'     } else {
+#'       dat <- NULL
+#'     }
+#'   }
+#' 
+#'   res <- list(formula = form, new_form = new_form, y = y,  x = dat, re = datas)
+#' 
+#'   class(res) <- "fibre_data"
+#' 
+#'   res
+#' 
+#' }
+#' 
+#' get_inla_data <- function(dat) {
+#' 
+#'   form <- dat$form
+#'   new_form <- dat$new_form
+#'   y <- dat$y
+#'   dat <- dat$dat
+#'   datas <- dat$datas
+#' 
+#'   check_data_dims(y, dat, datas)
+#' 
+#'   data_stack <- make_inla_stack(y, datas, dat)
+#' 
+#'   parms <- data_stack$names
+#'   inla_forms <- mapply(generate_inla_formula,
+#'                        parms$effect_names,
+#'                        parms$rate_models,
+#'                        parms$Cmats,
+#'                        parms$hypers,
+#'                        parms$constrs)
+#' 
+#'   resp <- all.vars(form[[2]])
+#' 
+#'   final_form <- reformulate(c(all.vars(new_form[[2]]),
+#'                               sapply(inla_forms, function(x) Reduce(paste, deparse(x)))),
+#'                             resp,
+#'                             intercept = FALSE,
+#'                             env = emptyenv())
+#' 
+#'   final_form <- Reduce(paste, deparse(final_form))
+#' 
+#'   res <- list(formula = final_form, data = data_stack)
+#' 
+#' }
 
 #' Generate data formatted to fit a `fibre` model.
 #'

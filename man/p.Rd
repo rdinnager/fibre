@@ -7,8 +7,8 @@
 p(
   id,
   phy = NULL,
-  rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso",
-    "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
+  rate_model = c("iid", "gaussian", "ridge", "laplacian", "lasso", "double-exponential",
+    "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
   rate_order = c("first", "second"),
   weights = NULL,
   rate_weights = NULL,
