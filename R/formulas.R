@@ -19,12 +19,14 @@ parse_formula_for_mold <- function(form, data = NULL, debug = FALSE) {
 p <- function(phyf, 
               rate_distribution = c("iid", "gaussian", "ridge", "laplacian", "lasso", "double-exponential", "student-t", "horseshoe", "diverging", "fixed", "Brownian"),
               hyper = NULL,
-              latent = 0) {
+              latent = 0,
+              mixture_of = NULL) {
   
   rate_dist <- match.arg(rate_distribution)
   list(phyf = phyf,
        rate_dist = rate_dist,
        hyper = hyper,
-       latent = latent)
+       latent = latent,
+       mixture_of = mixture_of)
   
 }

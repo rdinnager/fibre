@@ -30,13 +30,16 @@ run_mold.fibre_formula_blueprint <- function(blueprint, data, ...) {
   
   form <- blueprint$formula  
   info <- parse_formula_for_mold(form, data = data)
-  dat <- hardhat::mold(info$new_form, data = data)
+  blueprint_default <- do.call(hardhat::new_default_formula_blueprint, as.list(blueprint))
+  dat <- hardhat::mold(info$new_form, data = data, 
+                       blueprint = blueprint_default)
   info$new_form <- NULL
   dat$extras$model_info <- info$ps_info
   list(predictors = dat$predictors,
        outcomes = dat$outcomes,
        blueprint = dat$blueprint,
        extras = dat$extras)
+  
 }
 
 #' @importFrom hardhat refresh_blueprint

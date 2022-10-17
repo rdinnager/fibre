@@ -15,11 +15,23 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
+library(phyf)
 library(fibre)
+library(dplyr)
 ```
 
 We start with a phylogeny and some traits we want to model. `{fibre}` uses the `{phyf}` package to keep a phylogeny stored in the phylogenetic flow (`pf`) format along with the data. We will load a premade `pf` object for this example, but later we will see how to make your own `pf` object from a phylogeny stored in as an `ape::phylo` object.
 
 ```{r load_data}
-avonet
+vert_bmr
 ```
+```{r scale}
+vert_bmr <- vert_bmr %>%
+  mutate(phlo = pf_scale_flow_sum(phlo))
+```
+
+```{r test_mold}
+test <- fibre(lnBMR ~ lnMass + p(phlo) + p(phlo^2), data = vert_bmr)
+```
+
+

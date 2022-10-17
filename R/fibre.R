@@ -66,164 +66,164 @@
 #' @export
 #'
 #' @examples
-fibre <- function(formula = ~ 1, data = NULL,
-                  family = "gaussian",
-                  rate_comb = NULL,
-                  fit = TRUE,
-                  obs_error = "est",
-                  verbose = TRUE,
-                  inla_verbose = FALSE,
-                  threads = 1,
-                  inla_threads = NULL,
-                  ...) {
-
-  assert_inla()
-
-  if(is.null(inla_threads)) {
-    inla_threads <- INLA::inla.getOption("num.threads")
-  }
-
-  if(is.numeric(obs_error)) {
-    if(obs_error == 0) {
-      obs_error <- 10
-    } else {
-      obs_error <- log(1 / obs_error)
-    }
-    fam_cont <- list(hyper = list(prec = list(prior = "gaussian",
-                                              initial = obs_error,
-                                              fixed = TRUE)))
-  } else {
-    if(is.character(obs_error) && obs_error == "est") {
-      fam_cont <- list()
-    } else {
-      stop('obs_error must be a numeric constant or "est"" (for estimate)')
-    }
-  }
-
-  # if(is.numeric(root)) {
-  #   fam_cont <- list()
-  # } else {
-  #   if(is.character(obs_error) && obs_error == "est") {
-  #     fam_cont <- list(hyper = list(prec = list(prior = "gaussian",
-  #                                                        initial = obs_error,
-  #                                                        fixed = TRUE)))
-  #   } else {
-  #     stop('obs_error must be a numeric constant or "est"" (for estimate)')
-  #   }
-  # }
-
-  if(verbose) {
-    message("Assembling model data and structure...")
-  }
-
-  full_stack <- parse_formula(formula, data = data)
-
-
-  # if(is.numeric(hyper)) {
-  #   prior <- list(prec = list(initial = hyper, fixed = TRUE))
-  # } else {
-  #   if(is.character(hyper)) {
-  #     if(hyper == "pc") {
-  #       dat_sd <- sd(dat[ , resp])
-  #       l <- A_mat > 0
-  #       e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
-  #                        (sum(l) / length(phy$tip.label)))) * 3
-  #       message("Automatically choosing prior for rate variance: exponential with 1% of probability density above ", e_var)
-  #       prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
-  #     }
-  #   }
-  #   if(is.list(hyper)) {
-  #     prior <- hyper
-  #   }
-  # }
-  #
-  # obs_prior <- prior
-  # if(hyper == "pc") {
-  #   obs_prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
-  # }
-  # fam_cont <- switch(obs_error,
-  #                    est = list(hyper = obs_prior),
-  #                    one = list(hyper = list(prec = list(prior = "gaussian",
-  #                                                        initial = 1,
-  #                                                        fixed = TRUE))),
-  #                    zero = list(hyper = list(prec = list(prior = "gaussian",
-  #                                                         initial = 10,
-  #                                                         fixed = TRUE))))
-
-
-  if(fit) {
-  message("Fitting model...")
-
-    fit <- INLA::inla(as.formula(full_stack$formula),
-                      data = full_stack$data$data,
-                      family = family,
-                      control.predictor = list(A = full_stack$data$A,
-                                               compute = TRUE),
-                      verbose = inla_verbose,
-                      control.family = fam_cont,
-                      ...)
-
-  } else {
-
-    fit <- NA
-
-  }
-  attr(fit, "data_for_fit") <- full_stack
-
-
-  # if(aces) {
-  #   fit_modes <- INLA::inla(inla_form,
-  #                      data = INLA::inla.stack.data(phy_stack),
-  #                      family = family,
-  #                      control.family = fam_cont,
-  #                      control.predictor = list(A = INLA::inla.stack.A(phy_stack),
-  #                                               compute = FALSE),
-  #                      verbose = inla_verbose,
-  #                      ...)
-  #
-  #   fit <- INLA::inla(inla_form,
-  #                     data = INLA::inla.stack.data(full_stack),
-  #                     family = family,
-  #                     control.family = fam_cont,
-  #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
-  #                                              compute = TRUE),
-  #                     control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
-  #                     verbose = inla_verbose,
-  #                     ...)
-  # } else {
-  #   fit <- INLA::inla(inla_form,
-  #                     data = INLA::inla.stack.data(full_stack),
-  #                     family = family,
-  #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
-  #                                              compute = TRUE),
-  #                     verbose = inla_verbose)
-  # }
-
-  # nam <- rownames(fit$summary.fitted.values)
-  # rate_inds <- grep(".Predictor.", nam, fixed = TRUE)
-  # root_ind <- which(!is.na(full_stack$effects$data[ , "root"]))
-  #
-  # rate_index <- rate_inds[-root_ind]
-  #
-  # node_pred_index <- grep(".APredictor.", nam, fixed = TRUE)
-  # ace_ind <- INLA::inla.stack.index(full_stack, "aces")$data
-  # tip_ind <- setdiff(node_pred_index, ace_ind)
-  # tce_ind <- INLA::inla.stack.index(full_stack, "tces")$data
-  #
-  # attr(fit, "stack") <- full_stack
-  # attr(fit, "indexes") <- list(rates = rate_index,
-  #                              node_predictions = node_pred_index,
-  #                              aces = ace_ind,
-  #                              tips = tip_ind,
-  #                              tces = tce_ind)
-  # attr(fit, "node_names") <- list(tips = namey,
-  #                                 nodes = if(aces) rownames(aces_A_mat) else NULL)
-
-  class(fit) <- c("fibre_results", class(fit))
-
-  fit
-
-}
+# fibre <- function(formula = ~ 1, data = NULL,
+#                   family = "gaussian",
+#                   rate_comb = NULL,
+#                   fit = TRUE,
+#                   obs_error = "est",
+#                   verbose = TRUE,
+#                   inla_verbose = FALSE,
+#                   threads = 1,
+#                   inla_threads = NULL,
+#                   ...) {
+# 
+#   assert_inla()
+# 
+#   if(is.null(inla_threads)) {
+#     inla_threads <- INLA::inla.getOption("num.threads")
+#   }
+# 
+#   if(is.numeric(obs_error)) {
+#     if(obs_error == 0) {
+#       obs_error <- 10
+#     } else {
+#       obs_error <- log(1 / obs_error)
+#     }
+#     fam_cont <- list(hyper = list(prec = list(prior = "gaussian",
+#                                               initial = obs_error,
+#                                               fixed = TRUE)))
+#   } else {
+#     if(is.character(obs_error) && obs_error == "est") {
+#       fam_cont <- list()
+#     } else {
+#       stop('obs_error must be a numeric constant or "est"" (for estimate)')
+#     }
+#   }
+# 
+#   # if(is.numeric(root)) {
+#   #   fam_cont <- list()
+#   # } else {
+#   #   if(is.character(obs_error) && obs_error == "est") {
+#   #     fam_cont <- list(hyper = list(prec = list(prior = "gaussian",
+#   #                                                        initial = obs_error,
+#   #                                                        fixed = TRUE)))
+#   #   } else {
+#   #     stop('obs_error must be a numeric constant or "est"" (for estimate)')
+#   #   }
+#   # }
+# 
+#   if(verbose) {
+#     message("Assembling model data and structure...")
+#   }
+# 
+#   full_stack <- parse_formula(formula, data = data)
+# 
+# 
+#   # if(is.numeric(hyper)) {
+#   #   prior <- list(prec = list(initial = hyper, fixed = TRUE))
+#   # } else {
+#   #   if(is.character(hyper)) {
+#   #     if(hyper == "pc") {
+#   #       dat_sd <- sd(dat[ , resp])
+#   #       l <- A_mat > 0
+#   #       e_var <- (sqrt(dat_sd / (sum(A_mat[l]) / length(phy$tip.label)) /
+#   #                        (sum(l) / length(phy$tip.label)))) * 3
+#   #       message("Automatically choosing prior for rate variance: exponential with 1% of probability density above ", e_var)
+#   #       prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
+#   #     }
+#   #   }
+#   #   if(is.list(hyper)) {
+#   #     prior <- hyper
+#   #   }
+#   # }
+#   #
+#   # obs_prior <- prior
+#   # if(hyper == "pc") {
+#   #   obs_prior <- list(prec = list(prior = "pc.prec", param = c(e_var, 0.01)))
+#   # }
+#   # fam_cont <- switch(obs_error,
+#   #                    est = list(hyper = obs_prior),
+#   #                    one = list(hyper = list(prec = list(prior = "gaussian",
+#   #                                                        initial = 1,
+#   #                                                        fixed = TRUE))),
+#   #                    zero = list(hyper = list(prec = list(prior = "gaussian",
+#   #                                                         initial = 10,
+#   #                                                         fixed = TRUE))))
+# 
+# 
+#   if(fit) {
+#   message("Fitting model...")
+# 
+#     fit <- INLA::inla(as.formula(full_stack$formula),
+#                       data = full_stack$data$data,
+#                       family = family,
+#                       control.predictor = list(A = full_stack$data$A,
+#                                                compute = TRUE),
+#                       verbose = inla_verbose,
+#                       control.family = fam_cont,
+#                       ...)
+# 
+#   } else {
+# 
+#     fit <- NA
+# 
+#   }
+#   attr(fit, "data_for_fit") <- full_stack
+# 
+# 
+#   # if(aces) {
+#   #   fit_modes <- INLA::inla(inla_form,
+#   #                      data = INLA::inla.stack.data(phy_stack),
+#   #                      family = family,
+#   #                      control.family = fam_cont,
+#   #                      control.predictor = list(A = INLA::inla.stack.A(phy_stack),
+#   #                                               compute = FALSE),
+#   #                      verbose = inla_verbose,
+#   #                      ...)
+#   #
+#   #   fit <- INLA::inla(inla_form,
+#   #                     data = INLA::inla.stack.data(full_stack),
+#   #                     family = family,
+#   #                     control.family = fam_cont,
+#   #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
+#   #                                              compute = TRUE),
+#   #                     control.mode = list(theta = fit_modes$mode$theta, restart = FALSE),
+#   #                     verbose = inla_verbose,
+#   #                     ...)
+#   # } else {
+#   #   fit <- INLA::inla(inla_form,
+#   #                     data = INLA::inla.stack.data(full_stack),
+#   #                     family = family,
+#   #                     control.predictor = list(A = INLA::inla.stack.A(full_stack),
+#   #                                              compute = TRUE),
+#   #                     verbose = inla_verbose)
+#   # }
+# 
+#   # nam <- rownames(fit$summary.fitted.values)
+#   # rate_inds <- grep(".Predictor.", nam, fixed = TRUE)
+#   # root_ind <- which(!is.na(full_stack$effects$data[ , "root"]))
+#   #
+#   # rate_index <- rate_inds[-root_ind]
+#   #
+#   # node_pred_index <- grep(".APredictor.", nam, fixed = TRUE)
+#   # ace_ind <- INLA::inla.stack.index(full_stack, "aces")$data
+#   # tip_ind <- setdiff(node_pred_index, ace_ind)
+#   # tce_ind <- INLA::inla.stack.index(full_stack, "tces")$data
+#   #
+#   # attr(fit, "stack") <- full_stack
+#   # attr(fit, "indexes") <- list(rates = rate_index,
+#   #                              node_predictions = node_pred_index,
+#   #                              aces = ace_ind,
+#   #                              tips = tip_ind,
+#   #                              tces = tce_ind)
+#   # attr(fit, "node_names") <- list(tips = namey,
+#   #                                 nodes = if(aces) rownames(aces_A_mat) else NULL)
+# 
+#   class(fit) <- c("fibre_results", class(fit))
+# 
+#   fit
+# 
+# }
 
 
 #' #' Phylogenetic Branch Random Effect. To be used in the `formula` argument to `fibre`.

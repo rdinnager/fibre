@@ -60,7 +60,7 @@ fibre.default <- function(x, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.data.frame <- function(x, y, ...) {
+fibre.data.frame <- function(x, y, intercept = TRUE, ...) {
   processed <- hardhat::mold(x, y)
   fibre_bridge(processed, ...)
 }
@@ -69,7 +69,7 @@ fibre.data.frame <- function(x, y, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.matrix <- function(x, y, ...) {
+fibre.matrix <- function(x, y, intercept = TRUE, ...) {
   processed <- hardhat::mold(x, y)
   fibre_bridge(processed, ...)
 }
@@ -78,8 +78,9 @@ fibre.matrix <- function(x, y, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.formula <- function(formula, data, ...) {
-  processed <- hardhat::mold(formula, data)
+fibre.formula <- function(formula, data, intercept = TRUE, ...) {
+  processed <- hardhat::mold(formula, data, 
+                             blueprint = fibre_formula_blueprint(intercept = intercept))
   fibre_bridge(processed, ...)
 }
 
@@ -87,7 +88,7 @@ fibre.formula <- function(formula, data, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.recipe <- function(x, data, ...) {
+fibre.recipe <- function(x, data, intercept = TRUE, ...) {
   processed <- hardhat::mold(x, data)
   fibre_bridge(processed, ...)
 }
@@ -96,11 +97,29 @@ fibre.recipe <- function(x, data, ...) {
 # Bridge
 
 fibre_bridge <- function(processed, ...) {
+  
   predictors <- processed$predictors
-  outcome <- processed$outcomes[[1]]
+  outcomes <- processed$outcomes
+  offset <- processed$extras$offset
+  pfcs <- purrr::map(processed$extras$model_info,
+                     "phyf")
+  rate_dists <- purrr::map(processed$extras$model_info,
+                           "rate_dists")
+  hypers <- purrr::map(processed$extras$model_info,
+                       "hypers")
+  latents <- purrr::map(processed$extras$model_info,
+                        "latent")
+  mixture_ofs <- purrr::map(processed$extras$model_info,
+                           "mixture_of")
 
-  fit <- fibre_impl(predictors, outcome)
+  
+  fit <- fibre_impl(predictors, outcomes,
+                    offset, pfcs,
+                    rate_dists, hypers,
+                    latents, mixture_ofs)
 
+  return(fit)
+  
   new_fibre(
     coefs = fit$coefs,
     blueprint = processed$blueprint
@@ -111,6 +130,19 @@ fibre_bridge <- function(processed, ...) {
 # ------------------------------------------------------------------------------
 # Implementation
 
-fibre_impl <- function(predictors, outcome) {
-  list(coefs = 1)
+fibre_impl <- function(predictors, outcomes,
+                       offset, pfcs,
+                       rate_dists, hypers,
+                       latents, mixture_ofs) {
+  
+  A <- do.call(cbind, purrr::map(pfcs, phyf::pf_as_sparse))
+  
+  return(list(A = A,
+              predictors = predictors,
+              outcomes = outcomes,
+              pfcs = pfcs,
+              rate_dists = rate_dists,
+              hypers = hypers,
+              latents = latents,
+              mixture_ofs = mixture_ofs))
 }
