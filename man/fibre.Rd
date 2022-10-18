@@ -13,13 +13,13 @@ fibre(x, ...)
 
 \method{fibre}{default}(x, ...)
 
-\method{fibre}{data.frame}(x, y, root_est = TRUE, ...)
+\method{fibre}{data.frame}(x, y, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 
-\method{fibre}{matrix}(x, y, root_est = TRUE, ...)
+\method{fibre}{matrix}(x, y, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 
-\method{fibre}{formula}(formula, data, root_est = TRUE, ...)
+\method{fibre}{formula}(formula, data, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 
-\method{fibre}{recipe}(x, data, root_est = TRUE, ...)
+\method{fibre}{recipe}(x, data, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 }
 \arguments{
 \item{x}{Depending on the context:

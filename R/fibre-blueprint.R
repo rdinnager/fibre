@@ -34,7 +34,7 @@ run_mold.fibre_formula_blueprint <- function(blueprint, data, ...) {
   dat <- hardhat::mold(info$new_form, data = data, 
                        blueprint = blueprint_default)
   info$new_form <- NULL
-  dat$extras$model_info <- info$ps_info
+  dat$extras$model_info <- info$bre_info
   list(predictors = dat$predictors,
        outcomes = dat$outcomes,
        blueprint = dat$blueprint,

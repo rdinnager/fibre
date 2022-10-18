@@ -60,7 +60,11 @@ fibre.default <- function(x, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.data.frame <- function(x, y, intercept = TRUE, ...) {
+fibre.data.frame <- function(x, y, 
+                             intercept = TRUE, 
+                             engine = c("inla", "glmnet"), 
+                             ...) {
+  engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
   fibre_bridge(processed, ...)
 }
@@ -69,7 +73,11 @@ fibre.data.frame <- function(x, y, intercept = TRUE, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.matrix <- function(x, y, intercept = TRUE, ...) {
+fibre.matrix <- function(x, y, 
+                         intercept = TRUE,
+                         engine = c("inla", "glmnet"),
+                         ...) {
+  engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
   fibre_bridge(processed, ...)
 }
@@ -78,7 +86,11 @@ fibre.matrix <- function(x, y, intercept = TRUE, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.formula <- function(formula, data, intercept = TRUE, ...) {
+fibre.formula <- function(formula, data, 
+                          intercept = TRUE, 
+                          engine = c("inla", "glmnet"),
+                          ...) {
+  engine <- match.arg(engine)
   processed <- hardhat::mold(formula, data, 
                              blueprint = fibre_formula_blueprint(intercept = intercept))
   fibre_bridge(processed, ...)
@@ -88,15 +100,19 @@ fibre.formula <- function(formula, data, intercept = TRUE, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.recipe <- function(x, data, intercept = TRUE, ...) {
+fibre.recipe <- function(x, data, 
+                         intercept = TRUE, 
+                         engine = c("inla", "glmnet"),
+                         ...) {
+  engine <- match.arg(engine)
   processed <- hardhat::mold(x, data)
-  fibre_bridge(processed, ...)
+  fibre_bridge(processed, engine, ...)
 }
 
 # ------------------------------------------------------------------------------
 # Bridge
 
-fibre_bridge <- function(processed, ...) {
+fibre_bridge <- function(processed, engine, ...) {
   
   predictors <- processed$predictors
   outcomes <- processed$outcomes
@@ -116,12 +132,14 @@ fibre_bridge <- function(processed, ...) {
   fit <- fibre_impl(predictors, outcomes,
                     offset, pfcs,
                     rate_dists, hypers,
-                    latents, mixture_ofs)
+                    latents, engine)
 
   return(fit)
   
   new_fibre(
-    coefs = fit$coefs,
+    fixed = fit$fixed,
+    random = fit$random,
+    hyper = fit$hyper,
     blueprint = processed$blueprint
   )
 }
@@ -133,16 +151,26 @@ fibre_bridge <- function(processed, ...) {
 fibre_impl <- function(predictors, outcomes,
                        offset, pfcs,
                        rate_dists, hypers,
-                       latents, mixture_ofs) {
+                       latents,
+                       engine) {
   
   A <- do.call(cbind, purrr::map(pfcs, phyf::pf_as_sparse))
   
+  A <- cbind(A)
+  
+  dat <- purrr::imap(pfcs,
+                    ~ dplyr::tibble("pfc_{.y}" :=
+                                      seq_len(phyf::pf_nedges(.x))
+                                    )
+                    ) %>%
+    dplyr::bind_rows()
+  
   return(list(A = A,
+              dat = dat,
               predictors = predictors,
               outcomes = outcomes,
               pfcs = pfcs,
               rate_dists = rate_dists,
               hypers = hypers,
-              latents = latents,
-              mixture_ofs = mixture_ofs))
+              latents = latents))
 }
