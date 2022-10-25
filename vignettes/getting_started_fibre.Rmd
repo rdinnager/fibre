@@ -31,7 +31,7 @@ vert_bmr <- vert_bmr %>%
 ```
 
 ```{r test_mold}
-test <- fibre(lnBMR ~ lnMass + bre(phlo) + bre(phlo^2), data = vert_bmr)
+test <- fibre(lnBMR + lnGS ~ lnMass + endo + bre(phlo) + bre(phlo^2, latent = 2), data = vert_bmr)
 ```
 
 

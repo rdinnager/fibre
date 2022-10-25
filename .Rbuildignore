@@ -4,3 +4,8 @@
 ^README\.Rmd$
 ^testing$
 ^testing\results$
+^\.github$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^logo$

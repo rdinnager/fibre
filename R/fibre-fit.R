@@ -66,7 +66,7 @@ fibre.data.frame <- function(x, y,
                              ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
-  fibre_bridge(processed, ...)
+  fibre_bridge(processed, engine, ...)
 }
 
 # XY method - matrix
@@ -79,7 +79,7 @@ fibre.matrix <- function(x, y,
                          ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
-  fibre_bridge(processed, ...)
+  fibre_bridge(processed, engine, ...)
 }
 
 # Formula method
@@ -93,7 +93,11 @@ fibre.formula <- function(formula, data,
   engine <- match.arg(engine)
   processed <- hardhat::mold(formula, data, 
                              blueprint = fibre_formula_blueprint(intercept = intercept))
-  fibre_bridge(processed, ...)
+  
+  if(engine == "glmnet" && length(processed$extras$model_info) > 1) {
+    rlang::abort('engine = "glmnet" currently only supports a single bre() call in a model.')
+  }
+  fibre_bridge(processed, engine, ...)
 }
 
 # Recipe method
@@ -154,19 +158,21 @@ fibre_impl <- function(predictors, outcomes,
                        latents,
                        engine) {
   
-  A <- do.call(cbind, purrr::map(pfcs, phyf::pf_as_sparse))
+  if(engine == "glmnet") {
+    rlang::abort('engine = "glmnet" does not support argument latent > 0')
+  }
   
-  A <- cbind(A)
+  dat_list <- switch(engine,
+                     inla = shape_data_inla(pfcs,
+                                            predictors,
+                                            outcomes,
+                                            latents),
+                     glmnet = shape_data_glmnet(pfcs,
+                                                predictors,
+                                                outcomes))
+
   
-  dat <- purrr::imap(pfcs,
-                    ~ dplyr::tibble("pfc_{.y}" :=
-                                      seq_len(phyf::pf_nedges(.x))
-                                    )
-                    ) %>%
-    dplyr::bind_rows()
-  
-  return(list(A = A,
-              dat = dat,
+  return(list(data = dat_list,
               predictors = predictors,
               outcomes = outcomes,
               pfcs = pfcs,

@@ -230,3 +230,30 @@ check_data_dims <- function(y, dat, datas) {
 
   invisible(NULL)
 }
+
+#' @importFrom zeallot %<-%
+tibble_block <- function(blocks, tibbles, glue_names = TRUE) {
+  tibs <- vctrs::vec_recycle_common(!!!tibbles)
+  missing <- purrr::map(blocks,
+                        ~ tibs[[.x[.x > 0][1]]] %>%
+                          dplyr::mutate(dplyr::across(.fns = na_fill)))
+  
+  names(missing) <- colnames(blocks)  
+  new_tib <- blocks %>%
+    dplyr::mutate(dplyr::across(.fns = ~ ifelse(.x == 0, missing[dplyr::cur_column()], tibs[.x])))
+  names_sep <- if(glue_names) ":" else NULL
+  unn <- tidyr::unnest(new_tib, dplyr::everything(), names_sep = names_sep)
+  unn
+}
+
+na_fill <- function(x) {
+  x[] <- NA
+  x
+}
+
+expand_empty <- function(...) {
+  obs <- rlang::list2(...)
+  empt <- purrr::map_lgl(obs, vctrs::vec_is_empty)
+  obs[empt] <- vctrs::vec_init(obs[empt])
+  obs
+}
