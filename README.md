@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# fibre
+# fibre <a href="https://rdinnager.github.io/fibre/"><img src="man/figures/logo.png" align="right" height="278" /></a>
 
 <!-- badges: start -->
 

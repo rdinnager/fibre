@@ -170,6 +170,15 @@ fibre_impl <- function(predictors, outcomes,
                      glmnet = shape_data_glmnet(pfcs,
                                                 predictors,
                                                 outcomes))
+  
+  form <- switch(engine, 
+                 inla = make_inla_formula(dat_list$dat, dat_list$y),
+                 glmnet = NULL)
+  
+  fit <- switch(engine,
+                inla = INLA::inla(formula = form,
+                                  data = list(y = dat_list$y,
+                                              data = dat_list$dat)))
 
   
   return(list(data = dat_list,

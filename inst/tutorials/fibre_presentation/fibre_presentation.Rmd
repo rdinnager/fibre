@@ -1,0 +1,143 @@
+---
+title: "Introducing {fibre} for Fast and Flexible Phylogenetic Modelling in R"
+output: 
+  ioslides_presentation:
+    widescreen: true
+runtime: shiny_prerendered
+---
+
+```{css echo=FALSE}
+@media print {
+  .topicsContainer,
+  .topicActions,
+  .exerciseActions .skip {
+    display: none;
+  }
+  .topics .tutorialTitle,
+  .topics .section.level2,
+  .topics .section.level3:not(.hide) {
+    display: block;
+  }
+  .topics {
+    width: 100%;
+  }
+  .tutorial-exercise, .tutorial-question {
+    page-break-inside: avoid;
+  }
+  .section.level3.done h3 {
+    padding-left: 0;
+    background-image: none;
+  }
+  .topics .showSkip .exerciseActions::before {
+    content: "Topic not yet completed...";
+    font-style: italic;
+  }
+}
+```
+
+```{r setup, include=FALSE}
+library(learnr)
+library(fibre)
+
+custom_checker <- function(label, user_code, check_code, envir_result, evaluate_result, envir_prep, last_value, stage, ...) {
+  # this is a code check
+  if(stage == "check") {
+    
+    rstudioapi::sendToConsole(user_code, focus = TRUE)
+    
+    fofpack::set_env(envir_result)
+
+    list(message = "Code Run!", correct = TRUE, type = "success", location = "append")
+    
+  }
+
+}
+
+knitr::opts_chunk$set(echo = FALSE)
+
+set.seed(98765)
+
+```
+
+## Introducing `{fibre}`
+
+- `{fibre}` is a phonetic respelling of the acronym PhyBR: *Phy*logenetic *B*ranch *R*egression
+- `{fibre}` implements fast and flexible evolutionary models of traits on phylogenies
+- Both for inference of rates of evolution of traits and for phylogenetic comparative methods
+
+## The Basis of Phylogenetic Branch Regression
+
+- Phylogenetic flows
+  - An information flow through a tree-structured graph from a root node to a set of terminal nodes.
+- Characterized by a (sparse) matrix: The root to node matrix
+- Each row represents a flow from the root to a terminal node (usually tips, but not necessarily)
+- Each column represents a branch of the phylogeny which each flow either flows through or doesn't (in which case it is zero)
+- The structure of the phylogenetic tree is completely determined by the sparsity structure of the matrix
+- The values of the non-zero elements can be branch lengths or any data associated with the phylogeny's edges
+
+## Phylogenetic Flows as a Data Structure
+
+- The package `{phyf}` handles phylogenetic flows as a type of `data.frame` or `tibble`
+- Makes it easy to combine a phylogeny with data
+
+## A simple example
+
+```{r phyf_intro, exercise=TRUE}
+library(phyf)
+library(ape)
+tree <- rcoal(4)
+plot(tree)
+```
+
+```{r phyf_intro-check}
+ls()
+```
+
+## As a `pfc` object
+
+- A `pfc` is a phylogenetic flow object
+- Note that the root node is not contained in a `pfc` because it has no edge leading to it
+- The notion of a root edge makes little sense in the context of phylogenetic flows
+
+```{r phyf_intro2, exercise=TRUE}
+tree_pfc <- pf_as_pfc(tree)
+tree_pfc
+```
+
+```{r phyf_intro2, exercise=TRUE}
+ls()
+```
+
+## Tips vs. Nodes
+
+- By default new `pfc` objects always have tips and internal nodes
+- In practice, only the tip elements are useful for fitting models
+- Internal node elements are useful for predicting ancestral states once a model is fit
+- The entire tree structure is represented in the tip elements of the phylogenetic flow because in the set of flows from the root to all of the tips, all internal nodes must have been flowed through at least once
+
+---
+
+## Tips vs. Nodes
+
+```{r phyf_intro3, exercise=TRUE}
+tree_tips <- pf_tips(tree_pfc)
+tree_tips
+
+plot(pf_as_phylo(tree_pfc))
+plot(pf_as_phylo(tree_tips))
+```
+
+```{r phyf_intro3, exercise=TRUE}
+ls()
+```
+
+## A Phylogenetic Flow object can be represented as sparse matrix
+
+```{r phyf_intro4, exercise=TRUE}
+pf_as_sparse(tree_pfc)
+```
+
+```{r phyf_intro4, exercise=TRUE}
+ls()
+```
+

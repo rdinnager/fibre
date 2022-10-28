@@ -22,6 +22,20 @@ shape_data_inla <- function(pfcs, predictors,
   y_df <-  expand_empty(!!!y_df) %>%
     dplyr::bind_cols()
   
+  if("(Intercept)" %in% colnames(predictors)) {
+    predictors <- dplyr::bind_cols(predictors %>%
+                                     dplyr::select(-`(Intercept)`),
+                                   predictors %>%
+                                     dplyr::select(`(Intercept)`) %>%
+                                     list() %>%
+                                     rep( ny) %>%
+                                     purrr::imap(function(x, y) {
+                                       colnames(x) <- paste0(colnames(x), "_", y)
+                                       x
+                                     }) %>%
+                                     dplyr::bind_cols())
+  }
+  
   dat_pred <- purrr::imap(predictors,
                           compress_data)
   

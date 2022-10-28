@@ -33,7 +33,8 @@ Suggests:
     bayou,
     slouch,
     tidytree,
-    recipes
+    recipes,
+    learnr
 VignetteBuilder: knitr
 Imports: 
     ape,
