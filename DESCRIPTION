@@ -57,4 +57,5 @@ Imports:
 Config/testthat/edition: 3
 Remotes: 
     rdinnager/phyf
+    uyedaj/bayou
 URL: https://rdinnager.github.io/fibre/
