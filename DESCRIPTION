@@ -29,7 +29,7 @@ Suggests:
     RPANDA,
     testthat (>= 3.0.0),
     INLA,
-    RRPhylo,
+    RRphylo,
     bayou,
     slouch,
     tidytree,
@@ -46,8 +46,6 @@ Imports:
     MCMCglmm,
     phytools,
     phangorn,
-    PCMBase,
-    fuzzyjoin,
     ivs,
     phyf (>= 0.0.0.9000),
     hardhat,
@@ -55,7 +53,7 @@ Imports:
     stats,
     vctrs,
     zeallot,
-    brulee
+    torch
 Config/testthat/edition: 3
 Remotes: 
     rdinnager/phyf
