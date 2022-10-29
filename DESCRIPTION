@@ -56,6 +56,6 @@ Imports:
     torch
 Config/testthat/edition: 3
 Remotes: 
-    rdinnager/phyf
+    rdinnager/phyf,
     uyedaj/bayou
 URL: https://rdinnager.github.io/fibre/
