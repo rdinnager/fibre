@@ -83,6 +83,7 @@ set.seed(98765)
 ## A simple example
 
 ```{r phyf_intro, exercise=TRUE}
+library(fibre)
 library(phyf)
 library(ape)
 tree <- rcoal(4)
@@ -104,7 +105,7 @@ tree_pfc <- pf_as_pfc(tree)
 tree_pfc
 ```
 
-```{r phyf_intro2, exercise=TRUE}
+```{r phyf_intro2-check}
 ls()
 ```
 
@@ -127,7 +128,7 @@ plot(pf_as_phylo(tree_pfc))
 plot(pf_as_phylo(tree_tips))
 ```
 
-```{r phyf_intro3, exercise=TRUE}
+```{r phyf_intro3-check}
 ls()
 ```
 
@@ -137,7 +138,45 @@ ls()
 pf_as_sparse(tree_pfc)
 ```
 
-```{r phyf_intro4, exercise=TRUE}
+```{r phyf_intro4-check}
 ls()
 ```
 
+## Visualise sparse matrix
+
+## A Model of trait Evolution
+
+- A trait at the tip of the tree is equal to the value of the trait at the root plus the sum of the evolutionary changes along each branch between that tip and the root.
+- Generally we want to put this in terms of the rates of evolution, such that the change in the trait along each branch is the rate times the branch length.
+
+## A simple Brownian motion model
+
+```{r model_brownian, exercise=TRUE}
+mod <- fibre(scale(log(Mass + 1)) ~ bre_brownian(phlo),
+             data = avonet)
+```
+
+```{r model_brownian-check}
+ls()
+```
+
+## Using a 'Second-Order' model
+
+```{r model_second_order, exercise=TRUE}
+mod2 <- fibre(scale(log(Mass + 1)) ~ bre_second_order(phlo),
+              data = avonet)
+```
+
+```{r model_second_order-check}
+ls()
+```
+
+## Predictions
+
+```{r model_brownian, exercise=TRUE}
+test <- predict(mod, avonet)
+```
+
+```{r model_brownian-check}
+ls()
+```

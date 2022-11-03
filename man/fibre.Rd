@@ -17,7 +17,13 @@ fibre(x, ...)
 
 \method{fibre}{matrix}(x, y, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 
-\method{fibre}{formula}(formula, data, intercept = TRUE, engine = c("inla", "glmnet"), ...)
+\method{fibre}{formula}(
+  formula,
+  data,
+  intercept = TRUE,
+  engine = c("inla", "glmnet", "mgcv"),
+  ...
+)
 
 \method{fibre}{recipe}(x, data, intercept = TRUE, engine = c("inla", "glmnet"), ...)
 }

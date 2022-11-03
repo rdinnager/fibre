@@ -88,7 +88,7 @@ fibre.matrix <- function(x, y,
 #' @rdname fibre
 fibre.formula <- function(formula, data, 
                           intercept = TRUE, 
-                          engine = c("inla", "glmnet"),
+                          engine = c("inla", "glmnet", "mgcv"),
                           ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(formula, data, 
@@ -126,7 +126,7 @@ fibre_bridge <- function(processed, engine, ...) {
   rate_dists <- purrr::map(processed$extras$model_info,
                            "rate_dists")
   hypers <- purrr::map(processed$extras$model_info,
-                       "hypers")
+                       "hyper")
   latents <- purrr::map(processed$extras$model_info,
                         "latent")
   mixture_ofs <- purrr::map(processed$extras$model_info,
@@ -137,15 +137,12 @@ fibre_bridge <- function(processed, engine, ...) {
                     offset, pfcs,
                     rate_dists, hypers,
                     latents, engine)
-
-  return(fit)
   
-  new_fibre(
-    fixed = fit$fixed,
-    random = fit$random,
-    hyper = fit$hyper,
-    blueprint = processed$blueprint
-  )
+  switch(engine,
+         inla = fibre_process_fit_inla(fit, processed$blueprint,
+                                       predictors,
+                                       pfcs))
+
 }
 
 
@@ -171,21 +168,40 @@ fibre_impl <- function(predictors, outcomes,
                                                 predictors,
                                                 outcomes))
   
+  
   form <- switch(engine, 
                  inla = make_inla_formula(dat_list$dat, dat_list$y),
                  glmnet = NULL)
   
-  fit <- switch(engine,
-                inla = INLA::inla(formula = form,
-                                  data = list(y = dat_list$y,
-                                              data = dat_list$dat)))
-
   
-  return(list(data = dat_list,
-              predictors = predictors,
-              outcomes = outcomes,
-              pfcs = pfcs,
-              rate_dists = rate_dists,
-              hypers = hypers,
-              latents = latents))
+  names(hypers) <- paste0("hyper_", seq_along(hypers))
+  rlang::env_bind(rlang::f_env(form), !!!hypers)
+
+ 
+  
+  if(engine == "inla") {
+    names(dat_list$y) <- backtick_names(names(dat_list$y))
+    names(dat_list$dat) <- backtick_names(names(dat_list$dat))
+    inla_dat <- INLA::inla.stack(data = list(y = dat_list$y),
+                                 A = list(dat_list$A),
+                                 effects = list(dat_list$dat),
+                                 compress = FALSE,
+                                 remove.unused = FALSE)
+  }
+  
+  #return(list(inla_dat, form))
+  fit <- switch(engine,
+                inla =  INLA::inla(formula = form,
+                                  data = INLA::inla.stack.data(inla_dat),
+                                  control.predictor = list(A = INLA::inla.stack.A(inla_dat),
+                                                           link = 1,
+                                                           compute = TRUE),
+                                  verbose = FALSE,
+                                  inla.mode = "experimental",
+                                  debug = FALSE,
+                                  safe = TRUE)
+  )
+  
+  fit
+  
 }

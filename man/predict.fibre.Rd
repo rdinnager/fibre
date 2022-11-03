@@ -4,7 +4,7 @@
 \alias{predict.fibre}
 \title{Predict from a \code{fibre}}
 \usage{
-\method{predict}{fibre}(object, new_data, type = "numeric", ...)
+\method{predict}{fibre}(object, new_data = NULL, type = "numeric", ...)
 }
 \arguments{
 \item{object}{A \code{fibre} object.}

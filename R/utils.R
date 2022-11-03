@@ -257,3 +257,12 @@ expand_empty <- function(...) {
   obs[empt] <- vctrs::vec_init(obs[empt])
   obs
 }
+
+empty_sparse <- function(nrow = 0, ncol = 0) {
+  nrow <- as.integer(nrow)
+  ncol <- as.integer(ncol)
+  out <- new("dgCMatrix")
+  out@Dim <- as.integer(c(nrow, ncol))
+  out@p <- integer(ncol + 1L)
+  out
+}

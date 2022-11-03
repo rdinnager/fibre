@@ -103,9 +103,9 @@ shape_data_inla <- function(pfcs, predictors,
     latent_df_new <- purrr::imap_dfr(latent_df_A,
                                      ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
   } else {
-    latent_copy_A <- MatrixExtra::emptySparse(format = "C")
+    latent_copy_A <- empty_sparse()
     latent_copy_new <- dplyr::tibble()
-    latent_df_A <- MatrixExtra::emptySparse(format = "C")
+    latent_df_A <- empty_sparse()
     latent_df_new <- dplyr::tibble()
   }
   
@@ -115,8 +115,19 @@ shape_data_inla <- function(pfcs, predictors,
   A_all <- do.call(cbind, purrr::map(x_all_A, phyf::pf_as_sparse))
 
   check_inla_dims(ys_all, x_all, A_all, ny, sum(unlist(latents)), ncol(predictors), length(pfcs))
+  
+  new_names <- make.names(c(names(ys_all), names(x_all)),
+                          unique = TRUE)
+  y_names <- new_names[seq_along(names(ys_all))]
+  x_names <- new_names[-seq_along(names(ys_all))]
+  
+  renamer <- dplyr::tibble(orig_names = c(names(ys_all), names(x_all)),
+                           new_names = c(y_names, x_names))
+  
+  names(ys_all) <- y_names
+  names(x_all) <- x_names
     
-  return(list(dat = x_all, y = ys_all, A = A_all))
+  return(list(dat = x_all, y = ys_all, A = A_all, renamer = renamer))
   
 }
 
@@ -310,4 +321,43 @@ check_inla_dims <- function(y, dat, A, ny, nlatent, npredictors, npfc) {
 A_zero_out <- function(A) {
   A[] <- 0
   A
+}
+
+backtick_names <- function(x) {
+  purrr::map_chr(rlang::syms(x), rlang::expr_deparse)
+}
+
+fibre_process_fit_inla <- function(fit, blueprint,
+                                   predictors,
+                                   pfcs) {
+  
+  fixed <- fit$summary.fixed[ , c(1:3, 5)]
+  random <- purrr::map(fit$summary.random, ~.x[ , c(1:4, 6)])
+  
+  hyper <- purrr::map_dfr(fit$marginals.hyperpar,
+                          ~ INLA::inla.zmarginal(INLA::inla.tmarginal(function(y) 1/y,
+                                                                      .x),
+                                                 silent = TRUE))[ , c(1:3, 7)]
+  
+  preds <- purrr::map(pfcs,
+                      phyf::pf_labels) %>%
+    dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(..., 
+                                                          repair = "unique", 
+                                                          quiet = TRUE)) %>%
+    dplyr::bind_cols(predictors, 
+                     .name_repair = ~ vctrs::vec_as_names(..., 
+                                                          repair = "unique", 
+                                                          quiet = TRUE)) %>%
+    tidyr::unite(label, dplyr::everything()) %>%
+    dplyr::bind_cols(fit$summary.fitted.values[seq_along(pfcs[[1]]), c(1:3, 5)] %>%
+                       dplyr::rename_with(function(x) paste0(".pred_", x)))
+  
+  new_fibre(
+    fixed = fixed,
+    random = random,
+    hyper = hyper,
+    model = fit,
+    saved_predictions = preds,
+    blueprint = blueprint
+  )
 }
