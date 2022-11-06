@@ -34,7 +34,8 @@ Suggests:
     slouch,
     tidytree,
     recipes,
-    learnr
+    learnr,
+    cgalMeshes (>= 0.1.0.9000)
 VignetteBuilder: knitr
 Imports: 
     ape,
@@ -57,7 +58,8 @@ Imports:
     glue,
     Matrix
 Config/testthat/edition: 3
-Remotes: 
+Remotes:  
     rdinnager/phyf,
-    uyedaj/bayou
+    uyedaj/bayou,
+    stla/cgalMeshes
 URL: https://rdinnager.github.io/fibre/
