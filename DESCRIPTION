@@ -55,7 +55,10 @@ Imports:
     zeallot,
     torch,
     glue,
-    Matrix
+    Matrix,
+    ggtree,
+    generics,
+    ggplot2
 Config/testthat/edition: 3
 Remotes: 
     rdinnager/phyf,

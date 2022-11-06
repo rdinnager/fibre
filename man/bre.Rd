@@ -6,7 +6,7 @@
 \usage{
 bre(
   phyf,
-  rate_distribution = c("iid", "laplacian", "student-t", "horseshoe"),
+  rate_distribution = c("iid", "laplacian", "student-t", "horseshoe", "Brownian"),
   hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
   latent = 0
 )

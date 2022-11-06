@@ -13,19 +13,41 @@ fibre(x, ...)
 
 \method{fibre}{default}(x, ...)
 
-\method{fibre}{data.frame}(x, y, intercept = TRUE, engine = c("inla", "glmnet"), ...)
+\method{fibre}{data.frame}(
+  x,
+  y,
+  intercept = TRUE,
+  engine = c("inla", "glmnet", "mgcv"),
+  engine_options = list(),
+  ...
+)
 
-\method{fibre}{matrix}(x, y, intercept = TRUE, engine = c("inla", "glmnet"), ...)
+\method{fibre}{matrix}(
+  x,
+  y,
+  intercept = TRUE,
+  engine = c("inla", "glmnet", "mgcv"),
+  engine_options = list(),
+  ...
+)
 
 \method{fibre}{formula}(
   formula,
   data,
   intercept = TRUE,
   engine = c("inla", "glmnet", "mgcv"),
+  engine_options = list(),
   ...
 )
 
-\method{fibre}{recipe}(x, data, intercept = TRUE, engine = c("inla", "glmnet"), ...)
+\method{fibre}{recipe}(
+  x,
+  data,
+  intercept = TRUE,
+  engine = c("inla", "glmnet", "mgcv"),
+  engine_options = list(),
+  ...
+)
 }
 \arguments{
 \item{x}{Depending on the context:

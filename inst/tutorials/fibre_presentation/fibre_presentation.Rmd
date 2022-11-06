@@ -55,8 +55,6 @@ custom_checker <- function(label, user_code, check_code, envir_result, evaluate_
 
 knitr::opts_chunk$set(echo = FALSE)
 
-set.seed(98765)
-
 ```
 
 ## Introducing `{fibre}`
@@ -83,11 +81,16 @@ set.seed(98765)
 ## A simple example
 
 ```{r phyf_intro, exercise=TRUE}
+set.seed(4534)
 library(fibre)
 library(phyf)
 library(ape)
+library(tidyverse)
+library(ggtree)
+library(patchwork)
+library(latex2exp)
 tree <- rcoal(4)
-plot(tree)
+plot(tree, show.node.label = TRUE)
 ```
 
 ```{r phyf_intro-check}
@@ -144,16 +147,122 @@ ls()
 
 ## Visualise sparse matrix
 
-## A Model of trait Evolution
+## Why does this matter?
+### A Model of trait Evolution
 
-- A trait at the tip of the tree is equal to the value of the trait at the root plus the sum of the evolutionary changes along each branch between that tip and the root.
+- Evolution of a trait can be expressed simply in terms of phylogenetic flow.
+- A trait at the tip of the tree is equal to the value of the trait at the root plus the sum of the evolutionary changes along each branch between that tip and the root, that is, along the phylogenetic flow for that tip.
 - Generally we want to put this in terms of the rates of evolution, such that the change in the trait along each branch is the rate times the branch length.
+
+$$\text{trait}_i = \text{trait}_0 + \sum_{e \subset \text{flow}_i} l_e r_e$$
+Where $\text{trait}_0$ is the trait value at the root node.
+
+## With `{phyf}` we can do tree 'arithmetic'
+
+```{r tree_arith, exercise=TRUE}
+rates <- matrix(rnorm(6), nrow = 1)
+rates
+
+tree_pfc
+tree_pfc * rates
+```
+
+```{r tree_arith-check}
+ls()
+```
+
+## With `{phyf}` we can do tree 'arithmetic'
+
+```{r tree_arith2, exercise=TRUE}
+root <- 2
+root + pf_flow_sum(tree_pfc * rates)
+```
+
+```{r tree_arith2-check}
+ls()
+```
+
+## But that whole procedure can be done with one matrix multiplication
+
+```{r tree_arith3, exercise=TRUE}
+root + pf_as_sparse(tree_pfc) %*% t(rates)
+```
+
+```{r tree_arith3-check}
+ls()
+```
+
+## This is very efficient
+
+- simulate trait evolution on large tree
+
+```{r sim_vert, exercise=TRUE}
+vert_bmr
+sum(vert_bmr$is_tip)
+system.time(
+  traits <- root + pf_as_sparse(vert_bmr) %*% matrix(rnorm(pf_nedges(vert_bmr$phlo)))
+)
+autoplot(vert_bmr %>% mutate(sim_trait = traits[ , 1]), sim_trait)
+```
+
+```{r sim_vert-check}
+ls()
+```
+
+## But how to we estimate the parameters?
+
+- One parameter per edge (the rates): $n_{edge} = n_{tips} + (n_{tips} - 1)$ for bifurcating tree
+- $n_{edge} > n_{tips}$: the number of parameters exceeds the number of data points 
+- Generally, this problem is solved by adding additional constraints on the model so that parameters are not completely 'free'
+- In a Bayesian framework, this is achieved with prior distributions
+
+## Let's put a simple Gaussian prior on our rates
+
+$$\text{trait}_i = \text{trait}_0 + \sum_{e \subset \text{flow}_i} l_e r_e + \text{error}_i$$
+$$\text{error}_i \sim \text{Normal}\left(0, \sigma^2\right)$$
+$$r_e \sim \text{Normal}\left(0, \tau^2\right)$$
+## What is this model?
+
+- I call it Phylogenetic Branch Regression (PhyBR, or fibre, phonetically)
+- This model is trivial to fit in a number of Bayesian modelling frameworks, including INLA (which uses an Integrated Nested Laplace Approximation for very fast inference)
+- Given the simplicity of this model, has anyone done it before?
+- Sort of: It is possible to show that the maximum a posterior (MAP) estimate of this model is equivalent to the maximum likelihood solution of phylogenetic ridge regression with penalty factor $\lambda = \frac{\sigma^2}{\tau^2}$
+
+## A relationship with Brownian motion
+
+- Phylogenetic trait models based on Brownian motion are classic models (and often unfairly criticized, more on that later).
+- Brownian motion is based on a stochastic process know as the Wiener process. 
+- They should be called phylogenetic Wiener models, because the historical connection with the physical process of Brownian motion has not aided our interpretations of this model in my opinion.
+- The Wiener process is characterized by four properties:
+
+## In a phylogenetic context, this all adds up to...
+
+- The change in a trait along the edges of a phylogeny are distributed according to
+
+$$\Delta\text{trait}_e \sim \text{Normal}\left(0, \phi^2 l_e\right)$$
+where $\phi^2$ is the evolutionary 'rate' parameter (more often referred to as $\sigma^2$, but I reserve that for the observation-level error distribution). But:
+$$\Delta\text{trait}_e = l_e r_e$$
+----
+
+So we have:
+
+$$l_e r_e \sim \text{Normal}\left(0, \phi^2 l_e\right)$$
+and therefore:
+
+$$\frac{l_e r_e}{l_e} \sim \text{Normal}\left(0, \frac{\phi^2 l_e}{l_e^2}\right)$$
+$$r_e \sim \text{Normal}\left(0, \phi^2 \sqrt l_e\right)$$
+
+## A Phylogenetic Wiener Process Model
+
+- So this (highly efficient) model is equivalent to a Wiener Process when using square root transformed edge lengths!
+- This also implies that the plain fibre model is equivalent to phylogenetic Brownian motion with squared branch-lengths (which also happens to be equivalent to a Pagel's Kappa model with $\kappa = 2$) 
 
 ## A simple Brownian motion model
 
 ```{r model_brownian, exercise=TRUE}
 mod <- fibre(scale(log(Mass + 1)) ~ bre_brownian(phlo),
-             data = avonet)
+             data = avonet,
+             engine_options = list(verbose = TRUE))
 ```
 
 ```{r model_brownian-check}
@@ -173,10 +282,75 @@ ls()
 
 ## Predictions
 
-```{r model_brownian, exercise=TRUE}
-test <- predict(mod, avonet)
+```{r preds1, exercise=TRUE}
+preds <- predict(mod, avonet)
+preds
 ```
 
-```{r model_brownian-check}
+```{r preds1-check}
+ls()
+```
+
+## Predictions
+
+```{r preds2, exercise=TRUE}
+avonet_w_preds <- avonet %>% bind_cols(preds)
+
+water_bird_preds <- avonet_w_preds %>%
+  filter(pf_is_desc(phlo, pf_mrca(phlo[c("Platalea_minor", "Pelecanus_occidentalis")])))
+p <- autoplot(water_bird_preds, 
+              .pred_mean,
+              layout = "rectangular") + xlim(0, 100)
+p
+```
+
+```{r preds2-check}
+ls()
+```
+
+
+## Uncertainty
+
+```{r preds3, exercise=TRUE}
+p2 <- autoplot(water_bird_preds, 
+              .pred_sd,
+              layout = "rectangular") + xlim(0, 100)
+p2
+```
+
+```{r preds3-check}
+ls()
+```
+
+## Get an Order subtree
+
+```{r preds4, exercise=TRUE}
+Galliformes_preds <- avonet_w_preds %>%
+  filter(pf_is_desc(phlo, pf_mrca(phlo[which(Order3 == "Galliformes")])))
+p3 <- autoplot(Galliformes_preds, 
+              .pred_mean,
+              layout = "circular") + xlim(0, 100) 
+p3
+```
+
+```{r preds4-check}
+ls()
+```
+
+## Uncertainty
+
+```{r preds5, exercise=TRUE}
+p4 <- autoplot(Galliformes_preds, 
+               .pred_mean,
+               layout = "circular",
+               suppress_tiplabels = TRUE) + 
+  autoplot(Galliformes_preds, 
+           .pred_sd,
+           layout = "circular",
+           suppress_tiplabels = TRUE) 
+p4
+```
+
+```{r preds5-check}
 ls()
 ```

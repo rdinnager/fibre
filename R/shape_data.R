@@ -329,15 +329,73 @@ backtick_names <- function(x) {
 
 fibre_process_fit_inla <- function(fit, blueprint,
                                    predictors,
-                                   pfcs) {
+                                   pfcs,
+                                   rate_dists) {
   
-  fixed <- fit$summary.fixed[ , c(1:3, 5)]
+  renamer <- fit$renamer
+  renames <- renamer$new_names
+  renamer <- renamer$orig_names
+  names(renamer) <- renames
+  
+  fit <- fit$fit
+  
+  fixed_df <- fit$summary.fixed[ , c(1:3, 5)] %>%
+    as.data.frame() %>%
+    dplyr::mutate(parameter = renamer[rownames(fit$summary.fixed)]) %>%
+    dplyr::select(parameter, mean, sd, `0.025quant`, `0.975quant`)
+  rownames(fixed_df) <- NULL
+  
+  names(fit$marginals.fixed) <- renamer[names(fit$marginals.fixed)]
+  
+  fixed_marg <- fit$marginals.fixed
+  
+  fixed_df <- fixed_df %>%
+    dplyr::mutate(marginal = fixed_marg)
+  
   random <- purrr::map(fit$summary.random, ~.x[ , c(1:4, 6)])
   
-  hyper <- purrr::map_dfr(fit$marginals.hyperpar,
-                          ~ INLA::inla.zmarginal(INLA::inla.tmarginal(function(y) 1/y,
-                                                                      .x),
-                                                 silent = TRUE))[ , c(1:3, 7)]
+  enames <- purrr::map(pfcs, phyf::pf_edge_names)
+  
+  random <- purrr::map2(random, enames,
+                        ~ {.x$ID <- .y[.x$ID]; .x})
+  
+  names(random) <- renamer[names(random)]
+  
+  random_marg <- purrr::map2(fit$marginals.random, enames,
+                            ~ {names(.x) <- .y; .x})
+  
+  names(random_marg) <- renamer[names(random_marg)]
+  
+  if(any(rate_dists == "Brownian")) {
+    brown_pfcs <- pfcs[rate_dists == "Brownian"]
+    lens <- purrr::map(brown_pfcs, ~ sqrt(phyf::pf_mean_edge_features(.x)))
+    random <- purrr::map2(random[rate_dists == "Brownian"], brown_pfcs,
+                        ~ .x %>%
+                          dplyr::mutate(sd = sd * lens,
+                                        `0.025quant` = `0.025quant` / lens,
+                                        `0.975quant` = `0.975quant` / lens,
+                                        `mean` = `0.025quant` / lens))
+    
+    random_marg <- purrr::map2(random_marg[rate_dists == "Brownian"], lens,
+                            ~ tmarginal_list(function(m) m / .y), .x)
+  }
+  
+  random <- purrr::map2(random, random_marg,
+                        ~ .x %>%
+                          dplyr::mutate(marginal = .y))
+  
+  hyper_marg <- purrr::map(fit$marginals.hyperpar,
+                           ~ INLA::inla.tmarginal(function(y) 1/y, .x))
+  
+  hyper_df <- purrr::map_dfr(hyper_marg,
+                             ~ INLA::inla.zmarginal(.x, silent = TRUE))[ , c(1:3, 7)] %>%
+    as.data.frame() %>%
+    dplyr::mutate(parameter = rownames(fit$summary.hyperpar)) %>%
+    dplyr::select(parameter, mean, sd, `0.025quant` = `quant0.025`, `0.975quant` = `quant0.975`)
+  rownames(hyper_df) <- NULL
+
+  hyper_df <- hyper_df %>%
+    dplyr::mutate(marginal = hyper_marg)
   
   preds <- purrr::map(pfcs,
                       phyf::pf_labels) %>%
@@ -353,11 +411,16 @@ fibre_process_fit_inla <- function(fit, blueprint,
                        dplyr::rename_with(function(x) paste0(".pred_", x)))
   
   new_fibre(
-    fixed = fixed,
+    fixed = fixed_df,
     random = random,
-    hyper = hyper,
+    hyper = hyper_df,
     model = fit,
     saved_predictions = preds,
     blueprint = blueprint
   )
+}
+
+tmarginal_list <- function(fun, x, ...) {
+  purrr::map(x,
+             ~ INLA::inla.tmarginal(fun, x, ...))
 }

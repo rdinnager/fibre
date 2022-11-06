@@ -62,11 +62,12 @@ fibre.default <- function(x, ...) {
 #' @rdname fibre
 fibre.data.frame <- function(x, y, 
                              intercept = TRUE, 
-                             engine = c("inla", "glmnet"), 
+                             engine = c("inla", "glmnet", "mgcv"),
+                             engine_options = list(),
                              ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
-  fibre_bridge(processed, engine, ...)
+  fibre_bridge(processed, engine, engine_options, ...)
 }
 
 # XY method - matrix
@@ -75,11 +76,12 @@ fibre.data.frame <- function(x, y,
 #' @rdname fibre
 fibre.matrix <- function(x, y, 
                          intercept = TRUE,
-                         engine = c("inla", "glmnet"),
+                         engine = c("inla", "glmnet", "mgcv"),
+                         engine_options = list(),
                          ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(x, y)
-  fibre_bridge(processed, engine, ...)
+  fibre_bridge(processed, engine, engine_options, ...)
 }
 
 # Formula method
@@ -89,6 +91,7 @@ fibre.matrix <- function(x, y,
 fibre.formula <- function(formula, data, 
                           intercept = TRUE, 
                           engine = c("inla", "glmnet", "mgcv"),
+                          engine_options = list(),
                           ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(formula, data, 
@@ -97,7 +100,7 @@ fibre.formula <- function(formula, data,
   if(engine == "glmnet" && length(processed$extras$model_info) > 1) {
     rlang::abort('engine = "glmnet" currently only supports a single bre() call in a model.')
   }
-  fibre_bridge(processed, engine, ...)
+  fibre_bridge(processed, engine, engine_options, ...)
 }
 
 # Recipe method
@@ -106,17 +109,18 @@ fibre.formula <- function(formula, data,
 #' @rdname fibre
 fibre.recipe <- function(x, data, 
                          intercept = TRUE, 
-                         engine = c("inla", "glmnet"),
+                         engine = c("inla", "glmnet", "mgcv"),
+                         engine_options = list(),
                          ...) {
   engine <- match.arg(engine)
   processed <- hardhat::mold(x, data)
-  fibre_bridge(processed, engine, ...)
+  fibre_bridge(processed, engine, engine_options, ...)
 }
 
 # ------------------------------------------------------------------------------
 # Bridge
 
-fibre_bridge <- function(processed, engine, ...) {
+fibre_bridge <- function(processed, engine, engine_options, ...) {
   
   predictors <- processed$predictors
   outcomes <- processed$outcomes
@@ -136,12 +140,14 @@ fibre_bridge <- function(processed, engine, ...) {
   fit <- fibre_impl(predictors, outcomes,
                     offset, pfcs,
                     rate_dists, hypers,
-                    latents, engine)
+                    latents, engine,
+                    engine_options)
   
   switch(engine,
          inla = fibre_process_fit_inla(fit, processed$blueprint,
                                        predictors,
-                                       pfcs))
+                                       pfcs,
+                                       rate_dists))
 
 }
 
@@ -153,7 +159,8 @@ fibre_impl <- function(predictors, outcomes,
                        offset, pfcs,
                        rate_dists, hypers,
                        latents,
-                       engine) {
+                       engine,
+                       engine_options) {
   
   if(engine == "glmnet") {
     rlang::abort('engine = "glmnet" does not support argument latent > 0')
@@ -187,21 +194,21 @@ fibre_impl <- function(predictors, outcomes,
                                  effects = list(dat_list$dat),
                                  compress = FALSE,
                                  remove.unused = FALSE)
+    inla_options <- list(control.predictor = list(A = INLA::inla.stack.A(inla_dat),
+                                                  link = 1,
+                                                  compute = TRUE),
+                         inla.mode = "experimental")
+    inla_options <- utils::modifyList(inla_options, engine_options, keep.null = TRUE)
   }
   
   #return(list(inla_dat, form))
   fit <- switch(engine,
-                inla =  INLA::inla(formula = form,
-                                  data = INLA::inla.stack.data(inla_dat),
-                                  control.predictor = list(A = INLA::inla.stack.A(inla_dat),
-                                                           link = 1,
-                                                           compute = TRUE),
-                                  verbose = FALSE,
-                                  inla.mode = "experimental",
-                                  debug = FALSE,
-                                  safe = TRUE)
+                inla = rlang::exec(INLA::inla, formula = form,
+                                   data = INLA::inla.stack.data(inla_dat),
+                                   !!!inla_options),
+                rlang::abort("Invalid engine argument")
   )
   
-  fit
+  list(fit = fit, renamer = dat_list$renamer)
   
 }

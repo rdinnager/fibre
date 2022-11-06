@@ -37,7 +37,7 @@ parse_formula_for_mold <- function(form, data = NULL, debug = FALSE) {
 #' @return A list of data to be used by the model.
 #' @export
 bre <- function(phyf, 
-                rate_distribution = c("iid", "laplacian", "student-t", "horseshoe"),
+                rate_distribution = c("iid", "laplacian", "student-t", "horseshoe", "Brownian"),
                 hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
                 latent = 0) {
   
@@ -66,7 +66,7 @@ bre_brownian <- function(phyf,
                          latent = 0) {
   
   bre(phyf = sqrt(phyf),
-      rate_dist = "iid",
+      rate_dist = "Brownian",
       hyper = hyper,
       latent = latent)
   
