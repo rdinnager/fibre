@@ -366,19 +366,21 @@ fibre_process_fit_inla <- function(fit, blueprint,
   
   names(random_marg) <- renamer[names(random_marg)]
   
-  if(any(rate_dists == "Brownian")) {
-    brown_pfcs <- pfcs[rate_dists == "Brownian"]
-    lens <- purrr::map(brown_pfcs, ~ sqrt(phyf::pf_mean_edge_features(.x)))
-    random <- purrr::map2(random[rate_dists == "Brownian"], brown_pfcs,
-                        ~ .x %>%
-                          dplyr::mutate(sd = sd * lens,
-                                        `0.025quant` = `0.025quant` / lens,
-                                        `0.975quant` = `0.975quant` / lens,
-                                        `mean` = `0.025quant` / lens))
-    
-    random_marg <- purrr::map2(random_marg[rate_dists == "Brownian"], lens,
-                            ~ tmarginal_list(function(m) m / .y), .x)
-  }
+  
+  ## tmarginal causes problems here, fix it later  
+  # if(any(rate_dists == "Brownian")) {
+  #   brown_pfcs <- pfcs[rate_dists == "Brownian"]
+  #   lens <- purrr::map(brown_pfcs, ~ sqrt(phyf::pf_mean_edge_features(.x)))
+  #   random <- purrr::map2(random[rate_dists == "Brownian"], lens,
+  #                       ~ .x %>%
+  #                         dplyr::mutate(sd = sd / .y,
+  #                                       `0.025quant` = `0.025quant` / .y,
+  #                                       `0.975quant` = `0.975quant` / .y,
+  #                                       `mean` = `0.025quant` / .y))
+  #   
+  #   random_marg <- purrr::map2(random_marg[rate_dists == "Brownian"], lens,
+  #                           ~ tmarginal_list(function(m) m / .y, .x))
+  # }
   
   random <- purrr::map2(random, random_marg,
                         ~ .x %>%
@@ -391,8 +393,13 @@ fibre_process_fit_inla <- function(fit, blueprint,
                              ~ INLA::inla.zmarginal(.x, silent = TRUE))[ , c(1:3, 7)] %>%
     as.data.frame() %>%
     dplyr::mutate(parameter = rownames(fit$summary.hyperpar)) %>%
-    dplyr::select(parameter, mean, sd, `0.025quant` = `quant0.025`, `0.975quant` = `quant0.975`)
+    dplyr::select(parameter, mean, sd, `0.025quant` = `quant0.025`, `0.975quant` = `quant0.975`) %>%
+    dplyr::mutate(parameter = gsub("Precision", "Variance", parameter))
   rownames(hyper_df) <- NULL
+  
+  hyper_df$parameter[grepl("y_pfc_", hyper_df$parameter)] <- paste("Variance for phylogenetic rates", 
+                                                                   seq_along(hyper_df$parameter[grepl("y_pfc_",
+                                                                                                      hyper_df$parameter)]))
 
   hyper_df <- hyper_df %>%
     dplyr::mutate(marginal = hyper_marg)

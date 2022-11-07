@@ -89,7 +89,8 @@ fibre.matrix <- function(x, y,
 #' @export
 #' @rdname fibre
 fibre.formula <- function(formula, data, 
-                          intercept = TRUE, 
+                          intercept = TRUE,
+                          family = "gaussian",
                           engine = c("inla", "glmnet", "mgcv"),
                           engine_options = list(),
                           ...) {
@@ -100,7 +101,7 @@ fibre.formula <- function(formula, data,
   if(engine == "glmnet" && length(processed$extras$model_info) > 1) {
     rlang::abort('engine = "glmnet" currently only supports a single bre() call in a model.')
   }
-  fibre_bridge(processed, engine, engine_options, ...)
+  fibre_bridge(processed, family, engine, engine_options, ...)
 }
 
 # Recipe method
@@ -120,7 +121,7 @@ fibre.recipe <- function(x, data,
 # ------------------------------------------------------------------------------
 # Bridge
 
-fibre_bridge <- function(processed, engine, engine_options, ...) {
+fibre_bridge <- function(processed, family, engine, engine_options, ...) {
   
   predictors <- processed$predictors
   outcomes <- processed$outcomes
@@ -128,7 +129,7 @@ fibre_bridge <- function(processed, engine, engine_options, ...) {
   pfcs <- purrr::map(processed$extras$model_info,
                      "phyf")
   rate_dists <- purrr::map(processed$extras$model_info,
-                           "rate_dists")
+                           "rate_dist")
   hypers <- purrr::map(processed$extras$model_info,
                        "hyper")
   latents <- purrr::map(processed$extras$model_info,
@@ -140,8 +141,11 @@ fibre_bridge <- function(processed, engine, engine_options, ...) {
   fit <- fibre_impl(predictors, outcomes,
                     offset, pfcs,
                     rate_dists, hypers,
-                    latents, engine,
+                    latents, family,
+                    engine,
                     engine_options)
+  
+  #return(fit)
   
   switch(engine,
          inla = fibre_process_fit_inla(fit, processed$blueprint,
@@ -159,6 +163,7 @@ fibre_impl <- function(predictors, outcomes,
                        offset, pfcs,
                        rate_dists, hypers,
                        latents,
+                       family,
                        engine,
                        engine_options) {
   
@@ -175,20 +180,19 @@ fibre_impl <- function(predictors, outcomes,
                                                 predictors,
                                                 outcomes))
   
-  
   form <- switch(engine, 
                  inla = make_inla_formula(dat_list$dat, dat_list$y),
                  glmnet = NULL)
   
   
-  names(hypers) <- paste0("hyper_", seq_along(hypers))
-  rlang::env_bind(rlang::f_env(form), !!!hypers)
+  family <- get_families(family, colnames(dat_list$y))
 
- 
   
   if(engine == "inla") {
-    names(dat_list$y) <- backtick_names(names(dat_list$y))
-    names(dat_list$dat) <- backtick_names(names(dat_list$dat))
+    #names(dat_list$y) <- backtick_names(names(dat_list$y))
+    #names(dat_list$dat) <- backtick_names(names(dat_list$dat))
+    hypers <- form$hypers
+    form <- form$form
     inla_dat <- INLA::inla.stack(data = list(y = dat_list$y),
                                  A = list(dat_list$A),
                                  effects = list(dat_list$dat),
@@ -199,12 +203,31 @@ fibre_impl <- function(predictors, outcomes,
                                                   compute = TRUE),
                          inla.mode = "experimental")
     inla_options <- utils::modifyList(inla_options, engine_options, keep.null = TRUE)
+    
+    n_re <- length(hypers$re) 
+    if(n_re > 0) {
+      hypers_re <- hypers[seq_along(hypers$re)]
+      names(hypers_re) <- hypers$re
+      rlang::env_bind(rlang::f_env(form), !!!hypers_re)
+    } 
+    
+    if(length(hypers$latent) > 0) {
+      hypers_latent <- hypers[seq_along(hypers$latent) + n_re]
+      names(hypers_latent) <- hypers$latent
+      hypers_copy <- rep(list(list(beta = list(fixed = FALSE))), length(hypers$copy))
+      names(hypers_copy) <- hypers$copy
+      rlang::env_bind(rlang::f_env(form), !!!hypers_latent)
+      rlang::env_bind(rlang::f_env(form), !!!hypers_copy)
+    }
+    
   }
   
   #return(list(inla_dat, form))
+  
   fit <- switch(engine,
                 inla = rlang::exec(INLA::inla, formula = form,
                                    data = INLA::inla.stack.data(inla_dat),
+                                   family = family,
                                    !!!inla_options),
                 rlang::abort("Invalid engine argument")
   )

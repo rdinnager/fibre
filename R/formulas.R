@@ -101,22 +101,54 @@ make_inla_formula <- function(dat, y) {
   
   preds <- colnames(dat)
   re <- grep("_indexes", preds)
-  hypers <- paste0("hyper_", seq_along(re))
+  latent <- grep("latent_", preds)
+  copies <- grep("copy_latent_", preds)
+  
+  if(length(latent) > 0) {
+    re <- setdiff(re, latent)
+    latent = setdiff(latent, copies)
+  }
+  
   #preds <- purrr::map_chr(rlang::syms(preds), rlang::expr_label)
   
   ys <- colnames(y)
   #ys <- purrr::map_chr(rlang::syms(ys), rlang::expr_label)
   
-  fs <- glue::glue("f({preds[re]}, model = 'iid', hyper = {hypers})")
+  if(length(re) > 0) {
+    hypers_re <- paste0("hyper_re_", seq_along(re))
+    re_fs <- glue::glue("f({preds[re]}, model = 'iid', hyper = {hypers_re})")
+  } else {
+    hypers_re <- character(0)
+  }
   
-  as.formula(paste(
-    paste(ys, collapse = " + "),
+  if(length(latent) > 0) {
+    hypers_latent <- paste0("hyper_latent_", seq_along(latent))
+    latent_fs <- glue::glue("f({preds[latent]}, model = 'iid', hyper = {hypers_latent})")
+  }
+  
+  if(length(latent) > 0) {
+    hypers_copy <- paste0("hyper_copy_", seq_along(copies))
+    copies_of <- sapply(strsplit(preds[copies], ".", fixed = TRUE), function(x) x[2])
+    copies_of <- gsub("copy_", "", copies_of)
+    copy_fs <- glue::glue('f({preds[copies]}, copy = "{copies_of}", hyper = {hypers_copy})')
+  } else {
+    hypers_latent <- character(0)
+    hypers_copy <- character(0)
+  }
+  
+  list(form = as.formula(paste(
+    ifelse(length(ys) > 1, "y", paste(ys, collapse = " + ")),
     "~ -1 +",
-    paste(preds[-re], collapse = " + "),
-    "+",
-    paste(fs, collapse = " + ")
+    paste(preds[-c(re, latent, copies)], collapse = " + "),
+    ifelse(length(re) > 0, paste0(" + ", paste(re_fs, collapse = " + ")), ""),
+    ifelse(length(latent) > 0, paste0(c(" + "),
+                                     paste(latent_fs, collapse = " + "),
+                                     " + ",
+                                     paste(copy_fs, collapse = " + ")), 
+           "")
     )
-  )
+  ),
+  hypers = list(re = hypers_re, latent = hypers_latent, copy = hypers_copy))
 }
 
 

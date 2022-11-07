@@ -266,3 +266,49 @@ empty_sparse <- function(nrow = 0, ncol = 0) {
   out@p <- integer(ncol + 1L)
   out
 }
+
+spark_hist_with_padding <- function(marginals, n_bins = 16) {
+  
+  samps <- purrr::map(marginals, 
+                      ~INLA::inla.rmarginal(.x, n = 400))
+  #rngs <- purrr::map(marginals, ~ range(.x[ , "x"]))
+  mins <- purrr::map_dbl(samps, ~min(.x))
+  maxs <- purrr::map_dbl(samps, ~max(.x))
+  minmax_iv <- ivs::iv(mins, maxs)
+  breaks <- seq(min(mins), max(maxs), length.out = n_bins)
+  bins <- ivs::iv(breaks[-length(breaks)], breaks[-1])
+  overlaps <- ivs::iv_locate_overlaps(minmax_iv, bins)
+  covers_bins <- overlaps %>%
+    dplyr::group_by(needles) %>%
+    dplyr::summarise(count = length(haystack),
+                     pad_front = min(haystack) - 1,
+                     pad_back = n_bins - max(haystack))
+  covers_bins <- covers_bins %>%
+    dplyr::mutate(count = ifelse(count == 1, 2, count))
+  glyphs <- purrr::map2_chr(samps, covers_bins$count,
+                            ~ skimr::inline_hist(.x, 
+                                                 .y))
+  padded <- purrr::pmap_chr(list(covers_bins$pad_front, glyphs, covers_bins$pad_back),
+                            ~ paste(c(rep(" ", ..1), 
+                                      ..2,
+                                      rep(" ", ..3)), collapse = ""))
+  
+  padded
+  
+} 
+
+get_families <- function(family, y_names) {
+  latent <- grep("latent_", y_names)
+  non_latent <- setdiff(seq_along(y_names), latent)
+  if(length(family) == length(non_latent)) {
+    families <- c(family, rep("gaussian", length(latent)))
+  } else {
+    if(length(family) == 1) {
+      families <- c(rep(family, length(non_latent)),
+                    rep("gaussian", length(latent)))
+    } else {
+      rlang::abort("family has incorrect length. It should have either length 1 or length equal to the number of outcomes.")
+    }
+  }
+  families
+}
