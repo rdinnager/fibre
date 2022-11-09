@@ -297,18 +297,36 @@ spark_hist_with_padding <- function(marginals, n_bins = 16) {
   
 } 
 
-get_families <- function(family, y_names) {
+get_families <- function(family, y_names, family_hyper = NULL) {
+  
+  
+  if(is.null(family_hyper)) {
+    family_hyper <- rep(list(list(hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))))), length(family))
+  } else {
+    if(length(family) != length(family_hyper)) {
+      rlang::abort("You provided hyper-parameters for the family but it's length does not match the length of family.")
+    }
+  }
+  
   latent <- grep("latent_", y_names)
   non_latent <- setdiff(seq_along(y_names), latent)
   if(length(family) == length(non_latent)) {
     families <- c(family, rep("gaussian", length(latent)))
+    family_hyper <- c(family_hyper, rep(list(list(hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))))), length(latent)))
   } else {
     if(length(family) == 1) {
       families <- c(rep(family, length(non_latent)),
                     rep("gaussian", length(latent)))
+      family_hyper <- c(rep(family_hyper, length(non_latent)),
+                        rep(list(list(hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))))), length(latent)))
     } else {
       rlang::abort("family has incorrect length. It should have either length 1 or length equal to the number of outcomes.")
     }
   }
-  families
+  
+  if(length(latent) > 0) {
+    family_hyper[seq_along(non_latent)] <- rep(list(list(hyper = list(prec = list(initial = 10, fixed = TRUE)))), length(non_latent))
+  }
+  
+  list(family = families, hyper = family_hyper)
 }

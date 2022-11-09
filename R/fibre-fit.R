@@ -147,7 +147,7 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
                     engine,
                     engine_options)
   
-  #return(fit)
+  return(fit)
   
   switch(engine,
          inla = fibre_process_fit_inla(fit, processed$blueprint,
@@ -188,12 +188,15 @@ fibre_impl <- function(predictors, outcomes,
                  glmnet = NULL)
   
   
-  family <- get_families(family, colnames(dat_list$y))
-
-  
   if(engine == "inla") {
-    #names(dat_list$y) <- backtick_names(names(dat_list$y))
-    #names(dat_list$dat) <- backtick_names(names(dat_list$dat))
+    
+    # family_hyper <- engine_options$control.family$hyper
+    # engine_options$control.family$hyper <- NULL
+  
+    family <- get_families(family, colnames(dat_list$y))
+    family_hyper <- family$hyper
+    family <- family$family
+    
     hypers <- form$hypers
     form <- form$form
     inla_dat <- INLA::inla.stack(data = list(y = dat_list$y),
@@ -204,6 +207,7 @@ fibre_impl <- function(predictors, outcomes,
     inla_options <- list(control.predictor = list(A = INLA::inla.stack.A(inla_dat),
                                                   link = 1,
                                                   compute = TRUE),
+                         control.family = family_hyper,
                          inla.mode = "experimental")
     inla_options <- utils::modifyList(inla_options, engine_options, keep.null = TRUE)
     
@@ -225,7 +229,7 @@ fibre_impl <- function(predictors, outcomes,
     
   }
   
-  #return(list(inla_dat, form))
+  #return(list(inla_dat, form, family, family_hyper))
   
   fit <- switch(engine,
                 inla = rlang::exec(INLA::inla, formula = form,

@@ -31,7 +31,7 @@ parse_formula_for_mold <- function(form, data = NULL, debug = FALSE) {
 #' @param phyf A `pfc` column containing the phylogenetic structure
 #' @param rate_distribution What distribution to use to model rates of evolution?
 #' @param hyper Hyper parameters as a list. Specify the prior distribution for 
-#' `engine = INLA` models here. Default is a penalised complexity prior with 1%
+#' `engine = INLA` models here. Default is a penalised complexity prior with 10%
 #' prior probability density greater than 1, which tend to work well for 
 #' standardised Gaussian responses and Binomial responses.
 #' @param latent How many latent variables to generate in `engine = INLA` models.
@@ -46,7 +46,7 @@ parse_formula_for_mold <- function(form, data = NULL, debug = FALSE) {
 #' @export
 bre <- function(phyf, 
                 rate_distribution = c("iid", "laplacian", "student-t", "horseshoe", "Brownian", "re"),
-                hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
+                hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))),
                 latent = 0,
                 label = NULL,
                 standardise = TRUE) {
@@ -79,7 +79,7 @@ bre <- function(phyf,
 #' @return A list of data to be used by the model.
 #' @export
 re <- function(groups, 
-               hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
+               hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))),
                label = NULL,
                standardise = TRUE) {
   
@@ -104,7 +104,7 @@ re <- function(groups,
 #' @return A list of data to be used by the model.
 #' @export
 bre_brownian <- function(phyf, 
-                         hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
+                         hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))),
                          latent = 0,
                          label = NULL,
                          standardise = TRUE) {
@@ -130,7 +130,7 @@ bre_brownian <- function(phyf,
 #' @return A list of data to be used by the model.
 #' @export
 bre_second_order <- function(phyf, 
-                             hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))),
+                             hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))),
                              latent = 0,
                              label = NULL,
                              standardise = TRUE) {
