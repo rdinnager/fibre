@@ -1,0 +1,37 @@
+---
+title: "Getting Started with {fibre}"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with {fibre}}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(phyf)
+library(fibre)
+library(dplyr)
+```
+
+We start with a phylogeny and some traits we want to model. `{fibre}` uses the `{phyf}` package to keep a phylogeny stored in the phylogenetic flow (`pf`) format along with the data. We will load a premade `pf` object for this example, but later we will see how to make your own `pf` object from a phylogeny stored in as an `ape::phylo` object.
+
+```{r load_data}
+vert_bmr
+```
+```{r scale}
+vert_bmr <- vert_bmr %>%
+  mutate(phlo = pf_scale_flow_sum(phlo))
+```
+
+```{r test_mold}
+test <- fibre(lnBMR + lnGS ~ lnMass + endo + bre(phlo) + bre(phlo^2, latent = 2), data = vert_bmr)
+```
+
+

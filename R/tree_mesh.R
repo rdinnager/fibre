@@ -31,30 +31,3 @@ tree_split_into_epochs <- function(phy, interval = NULL, k = NULL) {
   
 }
 
-tree_slice_by_epochs <- function(phy, epochs, where = length(epochs)) {
-  
-  phy$node.label <- as.character(ape::Ntip(phy) + seq_len(ape::Nnode(phy)))
-  
-  
-  
-}
-
-tree_slice_by_epoch <- function(phy, epochs, where = length(epochs)) {
-  
-  epoch <- epochs[where]
-  
-  trees <- try(phytools::treeSlice(phy, ivs::iv_start(epoch), trivial = TRUE))
-  new_tree <- try(phytools::treeSlice(phy, ivs::iv_start(epoch), trivial = TRUE, orientation = "rootwards"))
-  
-  if(inherits(new_tree, "try-error")) {
-    return(list(phy, where))
-  }
-  
-  if(where != 1) {
-    return(c(tree_slice_by_epoch(new_tree, epochs, where - 1L), 
-             list(trees)))
-  } else {
-    return(list(trees))
-  }
-  
-}
