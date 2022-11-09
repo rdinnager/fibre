@@ -40,10 +40,10 @@ print.fibre <- function(x, n = 10, ...) {
     
     cat("\n")
     
-    cli::cli_text("First {n} rates: ")
+    cli::cli_text("First {n} highest rates: ")
     
     print(x$random[[i]] %>%
-            dplyr::slice_head(n = n) %>%
+            dplyr::slice_max(abs(mean), n = n) %>%
             dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
     cli::cli_text("... with {nrow(x$random[[i]]) - n} more rate{?s}.")
     cli::cli_alert_info("Use `print(n = ...)` to see more rates.")
