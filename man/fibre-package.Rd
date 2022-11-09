@@ -6,10 +6,19 @@
 \alias{fibre-package}
 \title{fibre: Fast Evolutionary Trait Modelling on Phylogenies using Branch Regression Models}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 Implements Phylogenetic Branch Regression models which allow for flexible and versatile models of evolution along a phylogeny. The model can be used to detect shifts in rates of evolution along branches. The model uses a continuous and linear model structure and so can be easily combined with other non-phylogenetic statistical structures, as long as they are implemented using the R package INLA. One major uses of this are to condition on phylogeny in a standard regression between two traits, thus 'accounting' for phylogenetic structure in the response variable, similar to how pgls is used but allowing for a more flexible phylogenetic model. This also allows the phylogenetic model to be combined with the spatial models that INLA excels at (and with comparable flexibility to those spatial models).
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://rdinnager.github.io/fibre/}
+}
+
+}
 \author{
-\strong{Maintainer}: Russell Dinnage \email{r.dinnage@gmail.com} (\href{https://orcid.org/YOUR-ORCID-ID}{ORCID})
+\strong{Maintainer}: Russell Dinnage \email{r.dinnage@gmail.com} (\href{https://orcid.org/0000-0003-0846-2819}{ORCID})
 
 }
 \keyword{internal}
