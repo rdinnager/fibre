@@ -31,7 +31,10 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::pkgdown, local::., rsconnect
+          extra-packages: |
+            any::pkgdown 
+            local::. 
+            any::rsconnect
           needs: website
 
       - name: Build site
