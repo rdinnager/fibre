@@ -35,6 +35,7 @@ fibre(x, ...)
   formula,
   data,
   intercept = TRUE,
+  family = "gaussian",
   engine = c("inla", "glmnet", "mgcv"),
   engine_options = list(),
   ...

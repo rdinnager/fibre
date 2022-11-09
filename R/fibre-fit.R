@@ -136,6 +136,8 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
                         "latent")
   mixture_ofs <- purrr::map(processed$extras$model_info,
                            "mixture_of")
+  labels <- purrr::map(processed$extras$model_info,
+                           "label")
 
   
   fit <- fibre_impl(predictors, outcomes,
@@ -151,7 +153,8 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
          inla = fibre_process_fit_inla(fit, processed$blueprint,
                                        predictors,
                                        pfcs,
-                                       rate_dists))
+                                       rate_dists,
+                                       labels))
 
 }
 

@@ -552,9 +552,9 @@ Some model classes `fibre` can (or will) fit:
 
 ## Multivariate Example
 
-- The default multivariate model in `{fibre}` is fit with `{INLA}`, and uses a linear function of latent variables:
+- The default multivariate model in `{fibre}` is fit with `{INLA}`, and uses a linear function of latent variables (with the error term omitted for brevity):
 
-$$y_{i,j} = \text{root}_j + \sum_k\beta_{j, k}\mu_{i, k}$$
+$$\text{trait}_{i,j} = \text{root}_j + \sum_k\beta_{j, k}\mu_{i, k}$$
 $$\mu_{i, k} \sim \text{Pflow}\left(\phi_k^2\right)$$
 
 ```{r multivariate, exercise=TRUE}
@@ -573,3 +573,31 @@ mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr +
 ```{r multivariate-check}
 ls()
 ```
+
+
+## A tale of two phylogenies
+
+```{r interaction, exercise=TRUE}
+mod_int <- fibre(EFFECTSIZE1 ~ bre_brownian(plant_phlo) + bre_brownian(fungus_phlo) + 
+                   bre_brownian(plant_phlo * fungus_phlo) +
+                   re(PlantSpecies2018) +
+                   re(FungalGenus2018) +
+                   bre_brownian(fungus_phlo * pf_as_pfc(PlantSpecies2018)) +
+                   bre_brownian(plant_phlo * pf_as_pfc(FungalGenus2018)),
+                 data = plant_fungus %>%
+                   filter(plant_is_tip & fungus_is_tip),
+                 engine_options = list(verbose = TRUE))
+
+mod_int
+```
+
+```{r multivariate-check}
+ls()
+```
+
+## Truly complex high-dimensional data
+### Time to bring in deep learning!
+
+### Collaborator
+![](images/fibre_presentation_insertimage_3.png)
+Marian Kleinberg - Technische Universität Dortmund (now at Hello Games!)

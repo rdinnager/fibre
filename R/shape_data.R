@@ -22,18 +22,29 @@ shape_data_inla <- function(pfcs, predictors,
   y_df <-  expand_empty(!!!y_df) %>%
     dplyr::bind_cols()
   
+  # if("(Intercept)" %in% colnames(predictors)) {
+  #   predictors <- dplyr::bind_cols(predictors %>%
+  #                                    dplyr::select(-`(Intercept)`),
+  #                                  predictors %>%
+  #                                    dplyr::select(`(Intercept)`) %>%
+  #                                    list() %>%
+  #                                    rep(ny) %>%
+  #                                    purrr::imap(function(x, y) {
+  #                                      colnames(x) <- paste0(colnames(x), "_", y)
+  #                                      x
+  #                                    }) %>%
+  #                                    dplyr::bind_cols())
+  # }
+  
   if("(Intercept)" %in% colnames(predictors)) {
-    predictors <- dplyr::bind_cols(predictors %>%
-                                     dplyr::select(-`(Intercept)`),
-                                   predictors %>%
-                                     dplyr::select(`(Intercept)`) %>%
-                                     list() %>%
-                                     rep( ny) %>%
-                                     purrr::imap(function(x, y) {
-                                       colnames(x) <- paste0(colnames(x), "_", y)
-                                       x
-                                     }) %>%
-                                     dplyr::bind_cols())
+    d <- diag(ny)
+    ints <- tibble_block(as.data.frame(d), rep(list(predictors %>%
+                                     dplyr::select(`(Intercept)`)),
+                                ny))
+    colnames(ints) <- paste0("Intercept_", seq_len(ny))
+    predictors <- dplyr::bind_cols(ints,
+                                  dplyr::bind_rows(rep(list(predictors %>%
+                                                              dplyr::select(-`(Intercept)`)), ny)))
   }
   
   dat_pred <- purrr::imap(predictors,
@@ -52,14 +63,14 @@ shape_data_inla <- function(pfcs, predictors,
   x_pfc <- phyf::pf_as_pfc(pred_A, is_tip = rep(TRUE, nrow(pred_A)))
   x_df <- dplyr::tibble(x_pfc = x_pfc)
   
-  x_df <- dplyr::bind_rows(rep(list(x_df), ny))
+  #x_df <- dplyr::bind_rows(rep(list(x_df), ny))
   
   # latent_copy <- latent_df %>%
   #   dplyr::mutate(dplyr::across(.fns = ~ phyf::pf_ones(.x)))
   #colnames(latent_copy_df) <- paste0("copy_", colnames(latent_copy_df))
   
-  x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, latent_copy_df))
-  x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
+  #x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, latent_copy_df))
+  #x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
   
   y_block <- as.data.frame(diag(seq_len(ny)))
   ys <- tibble_block(y_block, purrr::imap(outcomes, 
@@ -84,20 +95,25 @@ shape_data_inla <- function(pfcs, predictors,
     tidyr::unnest(cols = dplyr::everything())
   
   if(sum(unlist(latents)) > 0) {
-    latent_copy_A <- purrr::map(latent_copy_df, phyf::pf_as_sparse)
+    latent_copy_A <- purrr::map(latent_copy_df, 
+                                ~ phyf::pf_as_sparse(.x))
     latent_copy_new <- purrr::imap_dfr(latent_copy_A, 
-                                   ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x)),
-                                                   "names" := paste0(.y, ":", colnames(.x)))) %>%
+                                   ~ dplyr::tibble("{.y}_indexes" := rep(seq_len(ncol(.x)), ny),
+                                                   "names" := paste0(.y, ":", rep(colnames(.x), ny)))) %>%
       tidyr::separate(.data$names, c("type", "latent", "ename"), sep = ":") %>%
+      dplyr::group_by(latent, ename) %>%
+      dplyr::mutate(copy_num = seq_along(ename)) %>%
+      dplyr::ungroup() %>%
       dplyr::select(-dplyr::all_of(c("type", "ename"))) %>%
-      dplyr::group_by(.data$latent) %>%
+      dplyr::group_by(.data$latent, .data$copy_num) %>%
       dplyr::group_nest() %>%
       dplyr::rowwise() %>%
       dplyr::mutate(data = list(data %>%
-                      stats::setNames(paste(latent, colnames(data), sep = ":")))) %>%
+                      stats::setNames(paste(latent, colnames(data), copy_num, sep = ":")))) %>%
+      dplyr::group_by(copy_num) %>%
+      dplyr::summarise(dplyr::bind_cols(data)) %>%
       dplyr::ungroup() %>%
-      tidyr::unnest(dplyr::everything()) %>%
-      dplyr::select(-dplyr::all_of("latent"))
+      dplyr::select(-dplyr::all_of(c("copy_num")))
     
     latent_df_A <- purrr::map(latent_df, phyf::pf_as_sparse)
     latent_df_new <- purrr::imap_dfr(latent_df_A,
@@ -110,11 +126,14 @@ shape_data_inla <- function(pfcs, predictors,
   }
   
   #x_all_y <- dplyr::bind_cols(x_df, latent_copy)
+
   x_all <- dplyr::bind_rows(x_df_new, y_df_new, latent_copy_new, latent_df_new)
   
+  x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, rep(list(latent_copy_df), sum(unlist(latents)))))
+  x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
   A_all <- do.call(cbind, purrr::map(x_all_A, phyf::pf_as_sparse))
 
-  check_inla_dims(ys_all, x_all, A_all, ny, sum(unlist(latents)), ncol(predictors), length(pfcs))
+  #check_inla_dims(ys_all, x_all, A_all, ny, sum(unlist(latents)), ncol(predictors), length(pfcs))
   
   new_names <- make.names(c(names(ys_all), names(x_all)),
                           unique = TRUE)
@@ -330,7 +349,8 @@ backtick_names <- function(x) {
 fibre_process_fit_inla <- function(fit, blueprint,
                                    predictors,
                                    pfcs,
-                                   rate_dists) {
+                                   rate_dists,
+                                   labels) {
   
   renamer <- fit$renamer
   renames <- renamer$new_names
@@ -359,12 +379,14 @@ fibre_process_fit_inla <- function(fit, blueprint,
   random <- purrr::map2(random, enames,
                         ~ {.x$ID <- .y[.x$ID]; .x})
   
-  names(random) <- renamer[names(random)]
+  #names(random) <- renamer[names(random)]
+  names(random) <- labels
   
   random_marg <- purrr::map2(fit$marginals.random, enames,
                             ~ {names(.x) <- .y; .x})
   
-  names(random_marg) <- renamer[names(random_marg)]
+  #names(random_marg) <- renamer[names(random_marg)]
+  names(random_marg) <- labels
   
   
   ## tmarginal causes problems here, fix it later  
@@ -397,9 +419,9 @@ fibre_process_fit_inla <- function(fit, blueprint,
     dplyr::mutate(parameter = gsub("Precision", "Variance", parameter))
   rownames(hyper_df) <- NULL
   
-  hyper_df$parameter[grepl("y_pfc_", hyper_df$parameter)] <- paste("Variance for phylogenetic rates", 
-                                                                   seq_along(hyper_df$parameter[grepl("y_pfc_",
-                                                                                                      hyper_df$parameter)]))
+  hyper_df$parameter[grepl("y_pfc_", hyper_df$parameter)] <- paste("Variance for", 
+                                                                   labels,
+                                                                   "random effect")
 
   hyper_df <- hyper_df %>%
     dplyr::mutate(marginal = hyper_marg)

@@ -35,8 +35,8 @@ print.fibre <- function(x, n = 10, ...) {
   
   for(i in seq_along(x$random)) {
     
-    cli::cli_rule(left = cli::style_bold("Random Effects ('Rates') for phylogenetic effect {i}"))
-    cli::cli_text("A phylogenetic Effect with {nrow(x$random[[1]])} estimated rates.")
+    cli::cli_rule(left = cli::style_bold("Random Effects ('Rates') for {names(x$random)[i]}"))
+    cli::cli_text("A Random Effect with {nrow(x$random[[i]])} estimated rates.")
     
     cat("\n")
     
