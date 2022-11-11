@@ -4,17 +4,28 @@
 \alias{re}
 \title{Specify a random effect}
 \usage{
-re(groups, hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01))))
+re(
+  groups,
+  hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.1))),
+  label = NULL,
+  standardise = TRUE
+)
 }
 \arguments{
 \item{groups}{A character or factor column containing the grouping variable
 for the random effect}
 
 \item{hyper}{Hyper parameters as a list. Specify the prior distribution for
-\code{engine = INLA} models here.}
+\code{engine = INLA} models here. Default is a penalised complexity prior with 10\%
+prior probability density greater than 1, which tend to work well for
+standardised Gaussian responses and Binomial responses.}
 
-\item{latent}{How many latent variables to generate in \code{engine = INLA} models.
-Default is none.}
+\item{label}{An optional label used to identify the random effect later
+The default is a label generated from the expression in \code{phyf}}
+
+\item{standardise}{Should the \code{pfc} object be standardised based on
+it's implied typical variance for terminal nodes? Default: \code{TRUE}.
+This helps random effects to be comparable to each other.}
 }
 \value{
 A list of data to be used by the model.
