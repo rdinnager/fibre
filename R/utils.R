@@ -297,6 +297,21 @@ spark_hist_with_padding <- function(marginals, n_bins = 16) {
   
 } 
 
+spark_dotplot <- function(coef, n_bins = 16) {
+  breaks <- seq(min(c(coef, 0)) - 0.01, max(c(coef, 0)) + 0.01, length.out = n_bins)
+  bins <- ivs::iv(breaks[-length(breaks)], breaks[-1])
+  overlaps <- ivs::iv_locate_between(coef, bins)
+  pnt_sym <- cli::format_inline("{cli::symbol$circle_filled}")
+  half <- (nchar(pnt_sym) - 1) / 2
+  zero_overlap <- ivs::iv_locate_between(0, bins)
+  zero_sym <- "|"
+  string <- rep(paste(rep(" ", length(bins) + nchar(pnt_sym) - 1), collapse = ""),
+                length(coef))
+  substr(string, zero_overlap$haystack[1], zero_overlap$haystack[1]) <- zero_sym
+  substr(string, overlaps$haystack - half, overlaps$haystack + half) <- pnt_sym
+  string
+}
+
 get_families <- function(family, y_names, family_hyper = NULL) {
   
   

@@ -33,11 +33,22 @@ runtime: shiny_prerendered
     font-style: italic;
   }
 }
+
+.fullslide img {
+  margin-top: -85px;
+  margin-left: -60px;
+}
 ```
+
 
 ```{r setup, include=FALSE}
 library(learnr)
 library(fibre)
+library(phyf)
+
+# local({
+#   old.hooks <- fansi::set_knit_hooks(knitr::knit_hooks)
+# })
 
 custom_checker <- function(label, user_code, check_code, envir_result, evaluate_result, envir_prep, last_value, stage, ...) {
   # this is a code check
@@ -53,9 +64,18 @@ custom_checker <- function(label, user_code, check_code, envir_result, evaluate_
 
 }
 
+tutorial_options(exercise.checker = custom_checker)
+
 knitr::opts_chunk$set(echo = FALSE)
 
+#options(crayon.enabled=TRUE)
+
 ```
+
+## {.fullslide}
+
+![](images/Evolution_2022_nonR_slides/Slide1.PNG)
+
 
 ## Introducing `{fibre}`
 
@@ -510,6 +530,7 @@ ls()
 
 - Using a Weiner Process model is not equivalent to assuming traits evolve 'randomly' like a particle in a gas.
 - It is, ultimately, just a prior distribution. 'Brownian motion' models are far more flexible than most of us realise!
+- The connection between 'Brownian motion' and ridge regression reveals that the purpose of the Gaussian assumption on evolutionary rates is regularization (or 'shrinkage')
 - For example:
 
 ```{r gaussian_assumption, exercise=TRUE}
@@ -549,13 +570,76 @@ Some model classes `fibre` can (or will) fit:
   - 'Traits' are measured not at the species-level but as an aggregate of multiple species (e.g. community ecosystem function)
 - Multivariate Models
   - Uses a latent variable approach (phylogenetic factor analysis, or for deep-learning methods, 'encoder'-based model)
+  
+## Extending Beyond "Gaussian" Rates
 
-## Multivariate Example
+- Reconceptualising phylogenetic trait evolution models as a form of regularisation or 'shrinkage' allows us to extend models using different 'shrinkage' distributions for the evolutionary rates.
+- There is large family of
 
-- The default multivariate model in `{fibre}` is fit with `{INLA}`, and uses a linear function of latent variables (with the error term omitted for brevity):
+## {.fullslide}
+
+![](images/Evolution_2022_nonR_slides/Slide19.PNG)
+
+## {.fullslide}
+
+![](images/Evolution_2022_nonR_slides/Slide20.PNG)
+
+## {.fullslide}
+
+![](images/Evolution_2022_nonR_slides/Slide21.PNG)
+
+## {.fullslide}
+
+![](images/Evolution_2022_nonR_slides/Slide22.PNG)
+
+
+## Multivariate Models
+
+- A simple proposal for multivariate models, especially large ones.
+- Use a multivariate 'shrinkage' prior on rate with independent variation in all dimensions and a single shrinkage parameter.
+- The reasoning: this gives a 'geometric' prior in trait space, essentially regularizing the total length of the multidimensional vector representing the evolutionary change along each branch.
+- This is very computationally efficient because it only requires fitting one hyper-parameter
+- It also implicitly forces a trade-off among variables (in order for the evolutionary vector to lengthen in one direction it must shrink in another direction under a total length restriction)
+- This has a nice biological sensibility to it.
+
+## Multivariate Models
+
+- Continuous variables should be transformed appropriately before analysis
+- Correlations among rates can easily be derived post-hoc from their joint posterior
+- If they are very strong it might be worth considering a model that explicitly takes into account correlations.
+
+```{r lasso, exercise=TRUE}
+avonet_beaks <- avonet %>%
+  mutate(Beak.Length_Culmen_tr = scale(log(Beak.Length_Culmen + 1))[ , 1],
+         Beak.Length_Nares_tr = scale(log(Beak.Length_Nares + 1))[ , 1],
+         Beak.Width_tr = scale(log(Beak.Width + 1))[ , 1],
+         Beak.Depth_tr = scale(log(Beak.Depth + 1))[ , 1]) %>%
+  dplyr::select(label, phlo, Beak.Length_Culmen_tr:Beak.Depth_tr)
+
+mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo), family = "mgaussian",
+                  data = avonet_beaks,
+                  engine = "glmnet",
+                  engine_options = list(trace.it = TRUE))
+```
+
+```{r lasso-check}
+ls()
+```
+
+## Incorporating correlations
+### Phylogenetic 'factor analysis'
+
+- If we really want to include correlations among traits, use 'latent traits'.
+- We can fit such a model with `{fibre}`, which uses `{INLA}` 
+- Response trait variables are modeled as a linear function of latent variables (with the error term omitted for brevity):
 
 $$\text{trait}_{i,j} = \text{root}_j + \sum_k\beta_{j, k}\mu_{i, k}$$
 $$\mu_{i, k} \sim \text{Pflow}\left(\phi_k^2\right)$$
+where $j$ is refers to the $j$th trait dimension, and $k$ refers to the $k$th latent trait dimension. 
+
+---
+
+Essentially this is dimension reduction, but where the latent space is constrained to be consistent with a model of evolutionary change on a phylogeny.
 
 ```{r multivariate, exercise=TRUE}
 avonet_beaks <- avonet %>%
@@ -574,10 +658,40 @@ mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr +
 ls()
 ```
 
+---
 
-## A tale of two phylogenies
+This model is not fully implemented, but should be available as a new feature in the package shortly.
 
-```{r interaction, exercise=TRUE}
+
+## Let's try a few interesting variations on the basic model
+### A tale of two phylogenies
+
+- We can model traits that are characteristic of pairs of species, instead of single species.
+- If these species pairs are from separate clades (e.g. a bipartite network), then we can model the trait as an interaction between 'latent' traits evolving on two phylogenies.
+
+The model is:
+
+$$\text{trait}_{i,j} = \mu_i + \mu_j + \mu_{i}^\text{int} \mu_{j}^\text{int}$$
+$$\mu_i \sim \text{Pflow}_i\left(\phi_i^2\right); \mu_j \sim \text{Pflow}_j\left(\phi_j^2\right)$$
+$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
+
+---
+
+- It turns out that if:
+
+$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
+
+then:
+
+$$\mu_\text{int} = \mu_{i}^\text{int} \mu_{j}^\text{int} \sim \text{Pflow}_\text{i}\otimes\text{Pflow}_\text{j}\left(\phi_\text{int}^2\right)$$
+- which means that the interaction can be modeled with a single parameter that is distributed according to a phylogenetic flow model that is the Kronecker product of the two interacting phylogenetic flows.
+
+## A Tale of Two Phylogenies
+
+- This model is equivalent to the models independently published by Hadfield et al. and Ives et al. in 2008.
+- However, like the single phylogeny models, the `{fibre}` model estimates 'rates' for the interaction, which in this case gives a measure of what combinations of nodes in the two phylogenies contribute the most to an interaction.
+
+```{r interaction2, exercise=TRUE}
 mod_int <- fibre(EFFECTSIZE1 ~ bre_brownian(plant_phlo) + bre_brownian(fungus_phlo) + 
                    bre_brownian(plant_phlo * fungus_phlo) +
                    re(PlantSpecies2018) +
@@ -591,13 +705,39 @@ mod_int <- fibre(EFFECTSIZE1 ~ bre_brownian(plant_phlo) + bre_brownian(fungus_ph
 mod_int
 ```
 
-```{r multivariate-check}
+```{r interaction2-check}
 ls()
 ```
+
+### A tale of two phylogenies
+
+- Because of the large number of effects, this model also takes a little while (~ approx 30 minutes on my laptop)
+
+```{r interaction3, exercise=TRUE}
+mod_int <- readr::read_rds("extdata/mod_int.rds")
+
+mod_int
+```
+
+```{r interaction3-check}
+ls()
+```
+
+![](images/fibre_presentation_insertimage_4.png)
+
 
 ## Truly complex high-dimensional data
 ### Time to bring in deep learning!
 
 ### Collaborator
-![](images/fibre_presentation_insertimage_3.png)
+
+```{r image3, fig.width=300}
+knitr::include_graphics("images/fibre_presentation_insertimage_3.png")
+
+```
+
 Marian Kleinberg - Technische Universität Dortmund (now at Hello Games!)
+
+
+
+

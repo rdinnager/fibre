@@ -1,9 +1,10 @@
-new_fibre <- function(fixed, random, hyper, model, saved_predictions, blueprint) {
-  hardhat::new_model(fixed = fixed,
+new_fibre <- function(fixed, random, hyper, model, saved_predictions, engine, blueprint) {
+  ob <- hardhat::new_model(fixed = fixed,
                      random = random,
                      hyper = hyper,
                      model = model,
                      saved_predictions = saved_predictions,
+                     engine = engine,
                      blueprint = blueprint, 
                      class = "fibre")
 }
@@ -19,8 +20,14 @@ print.fibre <- function(x, n = 10, ...) {
   
   cat("\n")
   
-  print(x$fixed %>%
+  if(x$engine == "inla") {
+    print(x$fixed %>%
           dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
+  }
+  if(x$engine == "glmnet") {
+    print(x$fixed %>%
+          dplyr::mutate(dotplot = spark_dotplot(coef)))
+  }
   
   cat("\n")
   
@@ -28,8 +35,14 @@ print.fibre <- function(x, n = 10, ...) {
   
   cat("\n")
   
-  print(x$hyper %>%
-          dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
+  if(x$engine == "inla") {
+    print(x$hyper %>%
+            dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
+  }
+  if(x$engine == "glmnet") {
+    print(x$hyper %>%
+            dplyr::mutate(dotplot = spark_dotplot(value)))
+  }
   
   cat("\n")
   
@@ -42,9 +55,16 @@ print.fibre <- function(x, n = 10, ...) {
     
     cli::cli_text("First {n} highest rates: ")
     
-    print(x$random[[i]] %>%
-            dplyr::slice_max(abs(mean), n = n) %>%
-            dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
+    if(x$engine == "inla") {
+      print(x$random[[i]] %>%
+              dplyr::slice_max(abs(mean), n = n) %>%
+              dplyr::mutate(marginal = spark_hist_with_padding(marginal)))
+    }
+    if(x$engine == "glmnet") {
+      print(x$random[[i]] %>%
+              dplyr::slice_max(abs(coef), n = n) %>%
+              dplyr::mutate(dotplot = spark_dotplot(coef)))
+    }
     cli::cli_text("... with {nrow(x$random[[i]]) - n} more rate{?s}.")
     cli::cli_alert_info("Use `print(n = ...)` to see more rates.")
     cat("\n")

@@ -350,7 +350,8 @@ fibre_process_fit_inla <- function(fit, blueprint,
                                    predictors,
                                    pfcs,
                                    rate_dists,
-                                   labels) {
+                                   labels,
+                                   engine) {
   
   renamer <- fit$renamer
   renames <- renamer$new_names
@@ -445,6 +446,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
     hyper = hyper_df,
     model = fit,
     saved_predictions = preds,
+    engine = engine,
     blueprint = blueprint
   )
 }
@@ -452,4 +454,112 @@ fibre_process_fit_inla <- function(fit, blueprint,
 tmarginal_list <- function(fun, x, ...) {
   purrr::map(x,
              ~ INLA::inla.tmarginal(fun, x, ...))
+}
+
+shape_data_glmnet <- function(pfcs,
+                              predictors,
+                              outcomes = NULL) {
+  
+  if(!is.null(outcomes)) {
+    y <- as.matrix(outcomes)
+  } else {
+    y <- NULL
+  }
+  if(length(pfcs) == 1) {
+    
+    x <- phyf::pf_as_sparse(pfcs[[1]])
+    pfact <- phyf::pf_mean_edge_features(pfcs[[1]])
+    colnames(x) <- paste0("pfc_", colnames(x))
+    
+  } else {
+    
+    mats <- purrr::imap(pfcs,
+                       ~ {x <- phyf::pf_as_sparse(.x) ;
+                         colnames(x) <- paste("pfc", colnames(x), .y, sep = "_");
+                         x})
+    x <- do.call(cbind, mats)
+    pfact <- do.call(c, purrr::map(pfcs,
+                        ~ phyf::pf_mean_edge_features(.x)))
+        
+  }
+  
+  x <- cbind(Matrix::Matrix(as.matrix(predictors)), x)
+  pfact <- c(rep(0, ncol(predictors)), pfact)
+  
+  list(dat = x, y = y, penalty_factor = pfact, renamer = NULL)
+  
+}
+
+fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
+                                     labels, alpha = 1,
+                                     to_predict, engine) {
+  
+  renamer <- fit$renamer
+  renames <- renamer$new_names
+  renamer <- renamer$orig_names
+  names(renamer) <- renames
+  
+  fit <- fit$fit
+  
+  metrics <- glmnet_metrics(fit, dat_list$dat, dat_list$y, penalty.factor = dat_list$penalty_factor)
+  
+  if(alpha > 0) {
+    best_mod <- which.min(metrics$bic_l)
+    best_lam <- fit$lambda[best_mod]
+  } else {
+    best_mod <- which.min(metrics$loocv)
+    best_lam <- fit$lambda[best_mod]
+  }
+  
+  new_fit <- fibre_process_fit_glmnet_lambda(fit, best_lam, best_mod, blueprint,
+                                             to_predict, labels, metrics, engine)
+  
+  return(new_fit)
+  
+
+}
+
+fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
+                                            to_predict, labels, metrics, engine) {
+  
+  
+  coefs <- coef(fit, s = lambda)
+  
+  if(is.list(coefs)) {
+    coefs <- purrr::imap_dfr(coefs,
+                         ~ dplyr::tibble(parameter = rownames(.x)[-1],
+                                         y = .y,
+                                         coef = as.vector(.x)[-1]))
+  } else {
+    coefs <- dplyr::tibble(parameter = rownames(coefs)[-1],
+                           coef = as.vector(coefs)[-1])
+  }
+  
+  pfc_rows <- startsWith(coefs$parameter, "pfc_")
+  coefs$parameter <- gsub("pfc_", "", coefs$parameter)
+  
+  fixed_df <- coefs[!pfc_rows, ]
+  random <- list(as.data.frame(coefs[pfc_rows, ]))
+  names(random) <- labels
+  hyper_df <- dplyr::tibble(parameter = c("sigma", "lambda", 
+                                          "rate estimate"),
+                            value = c(metrics$sigma[best_mod],
+                                      lambda, metrics$rate_est[best_mod]))
+  
+  predict_dat <- shape_data_glmnet(to_predict$pfcs, to_predict$predictors)
+  preds <- predict(fit, predict_dat$dat, s = lambda)[ , , 1]
+  params <- rownames(preds)
+  preds <- as.data.frame(preds) %>%
+    purrr::map_dfr(~as.data.frame(dplyr::tibble(parameter = params,
+                                  coef = .x)))
+  
+  new_fibre(
+    fixed = as.data.frame(fixed_df),
+    random = random,
+    hyper = as.data.frame(hyper_df),
+    model = fit,
+    saved_predictions = preds,
+    engine = engine,
+    blueprint = blueprint
+  )
 }

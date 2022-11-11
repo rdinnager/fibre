@@ -99,7 +99,10 @@ fibre.formula <- function(formula, data,
                              blueprint = fibre_formula_blueprint(intercept = intercept))
   
   if(engine == "glmnet" && length(processed$extras$model_info) > 1) {
-    rlang::abort('engine = "glmnet" currently only supports a single bre() call in a model.')
+    rlang::warn('engine = "glmnet" currently only concatenates multiple bre() calls in a model (so only one parameter is fit on all rates across all bre calls).')
+  }
+  if(engine == "glmnet" && ncol(processed$outcomes) > 1 && !family %in% c("multinomial", "mgaussian")) {
+    rlang::abort('engine = "glmnet" currently only supports "mgaussian" and "multinomial" for multiple outcome models.')
   }
   fibre_bridge(processed, family, engine, engine_options, ...)
 }
@@ -143,18 +146,13 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
   fit <- fibre_impl(predictors, outcomes,
                     offset, pfcs,
                     rate_dists, hypers,
-                    latents, family,
+                    latents, labels,
+                    family,
                     engine,
-                    engine_options)
+                    engine_options,
+                    processed$blueprint)
   
   return(fit)
-  
-  switch(engine,
-         inla = fibre_process_fit_inla(fit, processed$blueprint,
-                                       predictors,
-                                       pfcs,
-                                       rate_dists,
-                                       labels))
 
 }
 
@@ -165,13 +163,25 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
 fibre_impl <- function(predictors, outcomes,
                        offset, pfcs,
                        rate_dists, hypers,
-                       latents,
+                       latents, labels,
                        family,
                        engine,
-                       engine_options) {
+                       engine_options,
+                       blueprint) {
+  
+  if(engine == "glmnet" && sum(unlist(latents)) > 0) {
+    rlang::abort('engine = "glmnet" does not support argument latent > 0')
+  }
   
   if(engine == "glmnet") {
-    rlang::abort('engine = "glmnet" does not support argument latent > 0')
+    complete <- complete.cases(outcomes)
+    to_predict <- list(predictors = predictors[!complete, ],
+                       pfcs = purrr::map(pfcs,
+                                         ~ .x[!complete]))
+    outcomes <- outcomes[complete, ]
+    predictors <- predictors[complete, ]
+    pfcs <- purrr::map(pfcs,
+                       ~ .x[complete])
   }
   
   dat_list <- switch(engine,
@@ -229,6 +239,19 @@ fibre_impl <- function(predictors, outcomes,
     
   }
   
+  if(engine == "glmnet") {
+    glmnet_options <- list(standardize = FALSE, 
+                           nlambda = 1000,
+                           lambda.min.ratio = 0.00001 / nrow(dat_list$dat))
+    if(!is.null(engine_options$alpha)) {
+      alpha <- engine_options$alpha
+      engine_options$alpha <- NULL
+    } else {
+      alpha <- 1
+    }
+    glmnet_options <- utils::modifyList(glmnet_options, engine_options, keep.null = TRUE)
+  }
+  
   #return(list(inla_dat, form, family, family_hyper))
   
   fit <- switch(engine,
@@ -236,9 +259,33 @@ fibre_impl <- function(predictors, outcomes,
                                    data = INLA::inla.stack.data(inla_dat),
                                    family = family,
                                    !!!inla_options),
+                glmnet = rlang::exec(glmnet::glmnet,
+                                     x = dat_list$dat,
+                                     dat_list$y,
+                                     family = family,
+                                     alpha = alpha,
+                                     penalty.factor = dat_list$penalty_factor,
+                                     intercept = FALSE,
+                                     !!!glmnet_options),
                 rlang::abort("Invalid engine argument")
   )
   
-  list(fit = fit, renamer = dat_list$renamer)
+  fit <- list(fit = fit, renamer = dat_list$renamer)
+  
+  switch(engine,
+         inla = fibre_process_fit_inla(fit, blueprint,
+                                       predictors,
+                                       pfcs,
+                                       rate_dists,
+                                       labels,
+                                       engine),
+         glmnet = fibre_process_fit_glmnet(fit, blueprint,
+                                           dat_list,
+                                           labels,
+                                           alpha,
+                                           to_predict,
+                                           engine)
+         )
+  
   
 }

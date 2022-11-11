@@ -59,9 +59,10 @@ Imports:
     Matrix,
     ggtree,
     generics,
-    ggplot2
+    ggplot2,
+    glmnet
 Config/testthat/edition: 3
-Remotes:  
+Remotes: 
     rdinnager/phyf,
     uyedaj/bayou,
     stla/cgalMeshes
