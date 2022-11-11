@@ -56,6 +56,8 @@ bre <- function(phyf,
   if(standardise) {
     standard <- mean(phyf::pf_flow_sum(phyf))
     phyf <- phyf / standard
+  } else {
+    standard <- 1
   }
   
   rate_dist <- match.arg(rate_distribution)
@@ -91,7 +93,7 @@ re <- function(groups,
       hyper = hyper,
       latent = 0,
       label = label,
-      standardise = TRUE)
+      standardise = standardise)
   
 }
 
@@ -116,7 +118,7 @@ bre_brownian <- function(phyf,
       hyper = hyper,
       latent = latent,
       label = label,
-      standardise = TRUE)
+      standardise = standardise)
   
 }
 
@@ -142,7 +144,7 @@ bre_second_order <- function(phyf,
       hyper = hyper,
       latent = latent,
       label = label,
-      standardise = TRUE)
+      standardise = standardise)
   
 }
 

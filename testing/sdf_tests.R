@@ -3,7 +3,7 @@ library(fibre)
 library(torch)
 data(bird_beak_codes)
 
-sd1 <- load_state_dict("extdata/sdf_net.pt")
+sd1 <- load_state_dict(system.file("models/sdf_net.pt", package = "fibre"))
 sdfnet <- sdf_net()
 sdfnet$load_state_dict(sd1)
 
@@ -12,6 +12,8 @@ latent <- bird_beak_codes %>%
   dplyr::slice(1500) %>%
   unlist() %>%
   torch_tensor()
+
+bird_beak_codes$label[1500]
 
 # sdfnet$cuda()
 # latent <- latent$cuda()

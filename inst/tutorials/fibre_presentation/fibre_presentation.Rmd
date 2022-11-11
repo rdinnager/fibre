@@ -45,6 +45,7 @@ runtime: shiny_prerendered
 library(learnr)
 library(fibre)
 library(phyf)
+library(embedr)
 
 # local({
 #   old.hooks <- fansi::set_knit_hooks(knitr::knit_hooks)
@@ -110,11 +111,26 @@ library(ggtree)
 library(ggplot2)
 library(patchwork)
 library(latex2exp)
+library(GGally)
+library(movMF)
+library(torch)
+library(rgl)
+
+```
+
+```{r phyf_intro-check}
+ls()
+```
+
+## A test tree
+
+```{r phyf_intro2, exercise=TRUE}
+set.seed(4534)
 tree <- rcoal(4)
 plot(tree, show.node.label = TRUE)
 ```
 
-```{r phyf_intro-check}
+```{r phyf_intro2-check}
 ls()
 ```
 
@@ -124,12 +140,12 @@ ls()
 - Note that the root node is not contained in a `pfc` because it has no edge leading to it
 - The notion of a root edge makes little sense in the context of phylogenetic flows
 
-```{r phyf_intro2, exercise=TRUE}
+```{r phyf_intro3, exercise=TRUE}
 tree_pfc <- pf_as_pfc(tree)
 tree_pfc
 ```
 
-```{r phyf_intro2-check}
+```{r phyf_intro3-check}
 ls()
 ```
 
@@ -144,7 +160,7 @@ ls()
 
 ## Tips vs. Nodes
 
-```{r phyf_intro3, exercise=TRUE}
+```{r phyf_intro4, exercise=TRUE}
 tree_tips <- pf_tips(tree_pfc)
 tree_tips
 
@@ -152,21 +168,23 @@ plot(pf_as_phylo(tree_pfc))
 plot(pf_as_phylo(tree_tips))
 ```
 
-```{r phyf_intro3-check}
+```{r phyf_intro4-check}
 ls()
 ```
 
 ## A Phylogenetic Flow object can be represented as sparse matrix
 
-```{r phyf_intro4, exercise=TRUE}
+```{r phyf_intro5, exercise=TRUE}
 pf_as_sparse(tree_pfc)
 ```
 
-```{r phyf_intro4-check}
+```{r phyf_intro5-check}
 ls()
 ```
 
 ## Visualise sparse matrix
+
+
 
 ## Why does this matter?
 ### A Model of trait Evolution
@@ -592,11 +610,16 @@ Some model classes `fibre` can (or will) fit:
 
 ![](images/Evolution_2022_nonR_slides/Slide22.PNG)
 
+---
+
+- `{fibre}` currently supports 'Gaussian' (ridge) and 'Laplacian' (LASSO) based models through the `"glmnet"` engine.
+- I have plans to implement the the Horseshoe as well a full Bayesian version of the Laplacian model (`{glmnet}` uses a penalized likelihood approach)
+
 
 ## Multivariate Models
 
 - A simple proposal for multivariate models, especially large ones.
-- Use a multivariate 'shrinkage' prior on rate with independent variation in all dimensions and a single shrinkage parameter.
+- Use a 'shrinkage' prior on the norm of the coefficients estimated along each branch of the phylogeny.
 - The reasoning: this gives a 'geometric' prior in trait space, essentially regularizing the total length of the multidimensional vector representing the evolutionary change along each branch.
 - This is very computationally efficient because it only requires fitting one hyper-parameter
 - It also implicitly forces a trade-off among variables (in order for the evolutionary vector to lengthen in one direction it must shrink in another direction under a total length restriction)
@@ -608,6 +631,12 @@ Some model classes `fibre` can (or will) fit:
 - Correlations among rates can easily be derived post-hoc from their joint posterior
 - If they are very strong it might be worth considering a model that explicitly takes into account correlations.
 
+## An example
+
+- Here we will use the `"glmnet"` engine of `{fibre}`, which by default uses the equivalent of an independent Laplacian prior on the total length of a multivariate vector in trait space, and returns the MAP estimate
+- This means the estimate will be sparse (many zero length vectors). 
+- This gives a 'punctuated equilibrium' like model
+
 ```{r lasso, exercise=TRUE}
 avonet_beaks <- avonet %>%
   mutate(Beak.Length_Culmen_tr = scale(log(Beak.Length_Culmen + 1))[ , 1],
@@ -616,15 +645,93 @@ avonet_beaks <- avonet %>%
          Beak.Depth_tr = scale(log(Beak.Depth + 1))[ , 1]) %>%
   dplyr::select(label, phlo, Beak.Length_Culmen_tr:Beak.Depth_tr)
 
+```
+
+```{r lasso-check}
+ls()
+```
+
+## Run the model
+
+```{r lasso2, exercise=TRUE}
 mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo), family = "mgaussian",
                   data = avonet_beaks,
                   engine = "glmnet",
                   engine_options = list(trace.it = TRUE))
 ```
 
-```{r lasso-check}
+```{r lasso2-check}
 ls()
 ```
+
+## What does that model look like?
+
+```{r lasso_pred, exercise=TRUE}
+preds <- avonet_beaks %>% bind_cols(predict(mod_mult, avonet_beaks))
+#autoplot(preds, .pred_Beak.Length_Culmen_tr)
+```
+
+```{r lasso_pred-check}
+ls()
+```
+
+## Sensible predictions?
+
+```{r lasso_pred2, exercise=TRUE}
+ggplot(preds, aes(Beak.Length_Culmen_tr, .pred_Beak.Length_Culmen_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Length_Nares_tr, .pred_Beak.Length_Nares_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Width_tr, .pred_Beak.Width_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Depth_tr, .pred_Beak.Depth_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + plot_layout(ncol = 2) & theme_minimal()
+```
+
+```{r lasso_pred2-check}
+ls()
+```
+
+## Related work
+
+- The following implement a similar reasoning in the context of OU models:
+
+Bastide, P., Mariadassou, M. and Robin, S. (2017), Detection of adaptive shifts on phylogenies by using shifted stochastic processes on a tree. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 79(4):1067-1093, doi:10.1111/rssb.12206.
+
+Bastide, P., Ané, C., Robin, S. and Mariadassou, M. (2018), Inference of Adaptive Shifts for Multivariate Correlated Traits. Systematic Biology, 67(4), 662–680. doi:10.1093/sysbio/syy005.
+
+## What we can do with the estimates
+
+- We have a set of multivariate vectors describing evolutionary directions in trait space.
+
+```{r rates, exercise=TRUE}
+rates <- mod_mult$random[[1]] %>%
+  pivot_wider(names_from = "y", values_from = "coef") %>%
+  filter(Beak.Length_Culmen_tr != 0) %>%
+  rowwise() %>%
+  mutate(norm = sqrt(sum(c_across(-parameter)^2))) %>%
+  mutate(across(-parameter, ~ .x / norm))
+```
+
+```{r rates-check}
+ls()
+```
+
+---
+
+```{r rates2, exercise=TRUE}
+ggpairs(as.data.frame(rates %>% select(-parameter, -norm)),
+        upper = list(continuous = "density", combo = "box_no_facet", discrete = "count", na = "na"),) +
+  theme_minimal()
+```
+
+```{r rates2-check}
+ls()
+```
+
+## Relationship with Diversification?
+
+- Eyeballing caertianly looks like something is happening:
+
+
+## Attempt at testing the relationship
+
+![](images/fibre_presentation_insertimage_4.png)
+
+- I think I can do better than this, but the result is intriguing!
 
 ## Incorporating correlations
 ### Phylogenetic 'factor analysis'
@@ -639,17 +746,10 @@ where $j$ is refers to the $j$th trait dimension, and $k$ refers to the $k$th la
 
 ---
 
-Essentially this is dimension reduction, but where the latent space is constrained to be consistent with a model of evolutionary change on a phylogeny.
+Essentially this is dimension reduction, but where the latent space is constrained to be consistent with a model of evolutionary change on a phylogeny. The code for that model would look like this:
 
-```{r multivariate, exercise=TRUE}
-avonet_beaks <- avonet %>%
-  mutate(Beak.Length_Culmen_tr = scale(log(Beak.Length_Culmen + 1))[ , 1],
-         Beak.Length_Nares_tr = scale(log(Beak.Length_Nares + 1))[ , 1],
-         Beak.Width_tr = scale(log(Beak.Width + 1))[ , 1],
-         Beak.Depth_tr = scale(log(Beak.Depth + 1))[ , 1]) %>%
-  dplyr::select(label, phlo, Beak.Length_Culmen_tr:Beak.Depth_tr)
-
-mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo, latent = 2),
+```{r multivariate, eval=FALSE}
+mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo, latent = 2), 
                   data = avonet_beaks,
                   engine_options = list(verbose = TRUE))
 ```
@@ -723,8 +823,6 @@ mod_int
 ls()
 ```
 
-![](images/fibre_presentation_insertimage_4.png)
-
 
 ## Truly complex high-dimensional data
 ### Time to bring in deep learning!
@@ -738,6 +836,293 @@ knitr::include_graphics("images/fibre_presentation_insertimage_3.png")
 
 Marian Kleinberg - Technische Universität Dortmund (now at Hello Games!)
 
+## Biological data is complex!
+
+- Our models of evolution are not!
+- But that is okay, I have argued that simple evolutionary model are fine (as a 'prior')
+- So the complexity must be put somewhere else in the model
+- Deep Learning methods are perfect for this!
+- Representation learning is about finding a simple underlying latent 'representation' of complex data
+- Rests on the idea that high dimensional complexity is somewhat of an 'illusion'
+- The high dimensional data lies on a low dimension 'manifold' (which may be nonlinear and/or non-Euclidean)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/mesh.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Autodecoding Evolution 1.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution2.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution3.png)
 
 
+## {.fullslide}
 
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution4.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution5.png)
+
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution6.png)
+## {.fullslide}
+
+![](images/Autodecoding_evolution_slides/Copy of Autodecoding Evolution7.png)
+
+## Visualizing the Latent Space
+
+- The latent space has 64 dimensions, so it is difficult to visualize
+- We can do dimensionality reduction on the latent codes to try and visualize
+- We used the T-SNE algorithm to reduce the latent codes to 2 dimensions for vis
+
+## {.fullslide}
+
+```{r anim0, out.width=1100}
+knitr::include_graphics("images/Autodecoding_evolution_slides/bird_beak_latent_space_optimized.gif")
+
+```
+
+## Evolution?
+
+- If we treat the latent code as 'latent traits', we can use the methods I've already talked about to do ancestral character reconstruction and 'phylogenetic interpolation' along the branches of the phylogeny.
+- For example:
+
+## {.fullslide}
+
+```{r anim1, fig.width=300}
+knitr::include_graphics("images/Autodecoding_evolution_slides/beak_evolve.gif")
+
+```
+
+## The Trained Model is available in `{fibre}`
+
+- Both the trained model and the estimated latent codes for 2,020 birds
+
+```{r latent_birds, exercise=TRUE}
+bird_beak_codes
+beak_mod <- load_model("bird_beaks")
+beak_mod
+```
+
+```{r latent_birds-check}
+ls()
+```
+
+## Choose a random bird
+
+- *Rhodothraupis celaeno* - Crimson-collared Grosbeak
+
+```{r bird1, out.height='50%', out.width='50%'}
+knitr::include_graphics("images/fibre_presentation_insertimage_6.png")
+
+```
+
+
+## Make a mesh from the model
+
+```{r latent_birds2, exercise=TRUE}
+latent <- bird_beak_codes %>%
+  dplyr::filter(label == "Rhodothraupis_celaeno") %>%
+  dplyr::select(dplyr::starts_with("latent_")) %>%
+  unlist() %>%
+  torch_tensor()
+latent
+```
+
+```{r latent_birds2-check}
+ls()
+```
+
+## Make a mesh from the model
+
+```{r latent_birds3, exercise=TRUE}
+mesh <- beak_mod$get_mesh(latent)
+shade3d(mesh, col = "gold")
+```
+
+```{r latent_birds3-check}
+ls()
+```
+
+## A new type of Species Distribution Model
+
+- Based on the same principle but in 2D
+- Replace X, Y coordinates with environmental variables as input to the model.
+
+## {.fullslide}
+
+```{r anim2, out.width=1100}
+knitr::include_graphics("images/Autodecoding_evolution_slides/lizard range.gif")
+
+```
+
+## Part 2: Fast and Flexible Simulation 
+
+- Simulation is increasingly important in Biology
+- Fast way to test drive concepts
+- Will this process do what we hypothesize? In the context of a complex set of processes?
+- Fitting data to simulations as an alternative to traditional statistical models
+- Sometimes know as likelihood-free method, but now **simulation-based inference** is preferred
+
+## Complex Population Genomics Simulation with SLiM
+
+- A number of frame-works for making simulation more accessible in particular biological arenas has emerged in recent years
+- For Population Genomics, SLiM is a very powerful scripting language that includes all evolutionary processes as well as the ability to model complex spatial dynamics and tree-sequences recording, etc.
+- Individual-based simulation, very fast
+
+## But...
+
+- In order to integrate simulation smoothly with data analysis, having a standalone software for simulation is not ideal
+- With that in mind, my collaborators and I created `{slimr}`, an R package to integrate SLiM simulations with standard R workflows
+
+## Collaborators
+
+- I did this as part of a Postdoc with the I University of Canberra in Australia
+
+```{r logo, out.width=150}
+knitr::include_graphics("images/fibre_presentation_insertimage_5.png")
+```
+
+- Cross Institutional Collaboration on small desert mammal population genomics
+- Based on more than 30 years of data and sample collections in the Simpson Desert
+- Stephen Sarre, Bernd Gruber, and Richard Duncan at University of Canberra
+- Glenda Wardle, Chris Dickman, and Aaron Greenville at University of Sydney, and...
+- Scott Edwards, at, well, here.
+
+## `{slimr}` allows you to write SLiM code in an R IDE
+
+## {.fullslide}
+
+```{r example1, out.height=700, out.width=1100}
+knitr::include_graphics("images/slimr_example_fig_1.png")
+
+```
+
+## {.fullslide}
+
+```{r example2, out.height=700, out.width=1100}
+knitr::include_graphics("images/slimr_verbs_example.png")
+
+```
+
+## A quick example
+
+```{r slimr, exercise=TRUE}
+library(slimr)
+## set some parameters
+seed <- 1205
+split_prob <- 0.001
+max_subpops <- 10
+
+## specify simulation
+split_isolate_sim <- slim_script(
+  
+  slim_block(initialize(), {
+  
+    setSeed(!!seed);
+    
+    ## tell SLiM to simulate nucleotides
+    initializeSLiMOptions(nucleotideBased=T);
+    initializeAncestralNucleotides(randomNucleotides(1000));
+    initializeMutationTypeNuc("m1", 0.5, "f", 0.0);
+    
+    initializeGenomicElementType("g1", m1, 1.0, mmJukesCantor(1e-5));
+    initializeGenomicElement(g1, 0, 1000 - 1);
+    initializeRecombinationRate(1e-8);
+    
+  }),
+  
+  slim_block(1, {
+    
+    defineGlobal("curr_subpop", 1);
+    sim.addSubpop(curr_subpop, 100)
+    
+  }),
+  
+  slim_block(1, 10000, late(), {
+    
+    if(rbinom(1, 1, !!split_prob) == 1) { 
+      ## split a subpop
+      subpop_choose = sample(sim.subpopulations, 1)
+      curr_subpop = curr_subpop + 1
+      sim.addSubpopSplit(subpopID = curr_subpop, 
+                         size = 100, 
+                         sourceSubpop = subpop_choose)
+      ## if too many subpops, remove one randomly
+      if(size(sim.subpopulations) > !!max_subpops) {
+        subpop_del = sample(sim.subpopulations, 1)
+        subpop_del.setSubpopulationSize(0)
+      }
+    }
+    
+    ## output nucleotide data
+    slimr_output_nucleotides(subpops = TRUE, do_every = 100)
+      
+  }),
+  
+  slim_block(10000, late(), {
+    sim.simulationFinished()
+  })
+  
+)
+
+split_isolate_sim
+
+```
+
+```{r slimr-check}
+ls()
+```
+
+## A quick example
+
+```{r slimr2, exercise=TRUE}
+results <- slim_run(split_isolate_sim, 
+                    slim_path = "C:/msys64/mingw64/bin/slim.exe")
+res_data <- slim_results_to_data(results)
+res_data
+```
+
+```{r slimr2-check}
+ls()
+```
+
+## A quick example
+
+```{r slimr3, exercise=TRUE}
+image(ape::as.DNAbin(res_data$data[[100]]))
+```
+
+```{r slimr3-check}
+ls()
+```
+
+## A quick example
+
+```{r slimr4, exercise=TRUE}
+## convert to ape::DNAbin
+al <- ape::as.DNAbin(res_data$data[[100]])
+dists <- ape::dist.dna(al)
+upgma_tree <- ape::as.phylo(hclust(dists, method = "average"))
+pal <- paletteer::paletteer_d("RColorBrewer::Paired", 10)
+plot(upgma_tree, show.tip.label = FALSE)
+ape::tiplabels(pch = 19, col = pal[as.numeric(as.factor(res_data$subpops[[100]]))])
+
+```
+
+```{r slimr4-check}
+ls()
+```

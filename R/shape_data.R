@@ -458,7 +458,8 @@ tmarginal_list <- function(fun, x, ...) {
 
 shape_data_glmnet <- function(pfcs,
                               predictors,
-                              outcomes = NULL) {
+                              outcomes = NULL,
+                              rate_dists = "") {
   
   if(!is.null(outcomes)) {
     y <- as.matrix(outcomes)
@@ -467,13 +468,20 @@ shape_data_glmnet <- function(pfcs,
   }
   if(length(pfcs) == 1) {
     
-    x <- phyf::pf_as_sparse(pfcs[[1]])
+    if(rate_dists == "Brownian") {
+      expo <- 2
+    } else {
+      expo <- 1
+    }
+    x <- phyf::pf_as_sparse(pfcs[[1]]^expo)
     pfact <- phyf::pf_mean_edge_features(pfcs[[1]])
     colnames(x) <- paste0("pfc_", colnames(x))
     
   } else {
     
-    mats <- purrr::imap(pfcs,
+    expo <- ifelse(unlist(rate_dists) == "Brownian", 2, 1)
+    pfcs_expo <- purrr::map2(pfcs, expo, ~ .x^.y)
+    mats <- purrr::imap(pfcs_expo,
                        ~ {x <- phyf::pf_as_sparse(.x) ;
                          colnames(x) <- paste("pfc", colnames(x), .y, sep = "_");
                          x})
@@ -492,7 +500,8 @@ shape_data_glmnet <- function(pfcs,
 
 fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
                                      labels, alpha = 1,
-                                     to_predict, engine) {
+                                     to_predict, engine,
+                                     rate_dists) {
   
   renamer <- fit$renamer
   renames <- renamer$new_names
@@ -512,7 +521,8 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
   }
   
   new_fit <- fibre_process_fit_glmnet_lambda(fit, best_lam, best_mod, blueprint,
-                                             to_predict, labels, metrics, engine)
+                                             to_predict, labels, metrics, engine,
+                                             rate_dists)
   
   return(new_fit)
   
@@ -520,7 +530,8 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
 }
 
 fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
-                                            to_predict, labels, metrics, engine) {
+                                            to_predict, labels, metrics, engine,
+                                            rate_dists) {
   
   
   coefs <- coef(fit, s = lambda)
@@ -546,12 +557,24 @@ fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                             value = c(metrics$sigma[best_mod],
                                       lambda, metrics$rate_est[best_mod]))
   
-  predict_dat <- shape_data_glmnet(to_predict$pfcs, to_predict$predictors)
+  predict_dat <- shape_data_glmnet(to_predict$pfcs, to_predict$predictors, rate_dists = rate_dists)
   preds <- predict(fit, predict_dat$dat, s = lambda)[ , , 1]
   params <- rownames(preds)
-  preds <- as.data.frame(preds) %>%
-    purrr::map_dfr(~as.data.frame(dplyr::tibble(parameter = params,
-                                  coef = .x)))
+  pred <- as.data.frame(preds)
+  colnames(pred) <- paste0(".pred_", colnames(pred))
+  
+  
+  preds <- purrr::map(to_predict$pfcs,
+                      phyf::pf_labels) %>%
+    dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(..., 
+                                                          repair = "unique", 
+                                                          quiet = TRUE)) %>%
+    dplyr::bind_cols(to_predict$predictors, 
+                     .name_repair = ~ vctrs::vec_as_names(..., 
+                                                          repair = "unique", 
+                                                          quiet = TRUE)) %>%
+    tidyr::unite(label, dplyr::everything()) %>%
+    dplyr::bind_cols(pred)
   
   new_fibre(
     fixed = as.data.frame(fixed_df),

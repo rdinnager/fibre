@@ -175,9 +175,8 @@ fibre_impl <- function(predictors, outcomes,
   
   if(engine == "glmnet") {
     complete <- complete.cases(outcomes)
-    to_predict <- list(predictors = predictors[!complete, ],
-                       pfcs = purrr::map(pfcs,
-                                         ~ .x[!complete]))
+    to_predict <- list(predictors = predictors,
+                       pfcs = pfcs)
     outcomes <- outcomes[complete, ]
     predictors <- predictors[complete, ]
     pfcs <- purrr::map(pfcs,
@@ -191,7 +190,8 @@ fibre_impl <- function(predictors, outcomes,
                                             latents),
                      glmnet = shape_data_glmnet(pfcs,
                                                 predictors,
-                                                outcomes))
+                                                outcomes,
+                                                rate_dists))
   
   form <- switch(engine, 
                  inla = make_inla_formula(dat_list$dat, dat_list$y),
@@ -284,7 +284,8 @@ fibre_impl <- function(predictors, outcomes,
                                            labels,
                                            alpha,
                                            to_predict,
-                                           engine)
+                                           engine,
+                                           rate_dists)
          )
   
   
