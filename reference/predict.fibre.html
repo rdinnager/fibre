@@ -83,15 +83,10 @@ to be the same as the number of rows in <code>new_data</code>.</p>
 <span class="r-in"><span><span class="va">test</span> <span class="op">&lt;-</span> <span class="va">mtcars</span><span class="op">[</span><span class="fl">21</span><span class="op">:</span><span class="fl">32</span>, <span class="op">-</span><span class="fl">1</span><span class="op">]</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Fit</span></span></span>
-<span class="r-in"><span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdinnager.github.io/fibre/reference/fibre-package.html">fibre</a></span><span class="op">(</span><span class="va">mpg</span> <span class="op">~</span> <span class="va">cyl</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">drat</span><span class="op">)</span>, <span class="va">train</span><span class="op">)</span></span></span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>no non-missing arguments to max; returning -Inf</span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in str2lang(x):</span> &lt;text&gt;:2:0: unexpected end of input</span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> 1: mpg ~ -1 +   </span>
-<span class="r-err co"><span class="r-pr">#&gt;</span>    ^</span>
+<span class="r-in"><span><span class="co">#mod &lt;- fibre(mpg ~ cyl + log(drat), train)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Predict, with preprocessing</span></span></span>
-<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">mod</span>, <span class="va">test</span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in predict(mod, test):</span> object 'mod' not found</span>
+<span class="r-in"><span><span class="co">#predict(mod, test)</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
