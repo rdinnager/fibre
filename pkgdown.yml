@@ -1,0 +1,10 @@
+pandoc: 2.19.2
+pkgdown: 2.0.6
+pkgdown_sha: ~
+articles:
+  fibre: fibre.html
+last_built: 2022-11-12T05:05Z
+urls:
+  reference: https://rdinnager.github.io/fibre/reference
+  article: https://rdinnager.github.io/fibre/articles
+
