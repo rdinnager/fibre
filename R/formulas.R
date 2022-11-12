@@ -89,7 +89,7 @@ re <- function(groups,
   phyf <- pf_as_pfc(groups)
   
   bre(phyf = phyf,
-      rate_dist = "re",
+      rate_distribution = "re",
       hyper = hyper,
       latent = 0,
       label = label,
@@ -114,7 +114,7 @@ bre_brownian <- function(phyf,
   if(is.null(label)) label <- rlang::expr_label(substitute(phyf))
   
   bre(phyf = sqrt(phyf),
-      rate_dist = "Brownian",
+      rate_distribution = "Brownian",
       hyper = hyper,
       latent = latent,
       label = label,
@@ -140,7 +140,7 @@ bre_second_order <- function(phyf,
   if(is.null(label)) label <- rlang::expr_label(substitute(phyf))
   
   bre(phyf = sqrt(phyf::pf_second_order(phyf)),
-      rate_dist = "iid",
+      rate_distribution = "iid",
       hyper = hyper,
       latent = latent,
       label = label,

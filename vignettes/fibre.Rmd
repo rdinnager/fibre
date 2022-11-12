@@ -25,13 +25,7 @@ We start with a phylogeny and some traits we want to model. `{fibre}` uses the `
 ```{r load_data}
 vert_bmr
 ```
-```{r scale}
-vert_bmr <- vert_bmr %>%
-  mutate(phlo = pf_scale_flow_sum(phlo))
-```
 
-```{r test_mold}
-test <- fibre(lnBMR + lnGS ~ lnMass + endo + bre(phlo) + bre(phlo^2, latent = 2), data = vert_bmr)
-```
+
 
 

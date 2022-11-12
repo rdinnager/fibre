@@ -16,8 +16,7 @@ Description: Implements Phylogenetic Branch Regression models which allow for fl
   pgls is used but allowing for a more flexible phylogenetic model. This also allows the phylogenetic
   model to be combined with the spatial models that INLA excels at (and with comparable flexibility 
   to those spatial models).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to
-    pick a license
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
@@ -35,7 +34,8 @@ Suggests:
     tidytree,
     recipes,
     learnr,
-    cgalMeshes (>= 0.1.0.9000)
+    cgalMeshes (>= 0.1.0.9000),
+    roxygen2
 VignetteBuilder: knitr
 Imports: 
     ape,
@@ -50,7 +50,7 @@ Imports:
     ivs,
     phyf (>= 0.0.0.9000),
     hardhat,
-    rlang,
+    rlang (>= 0.4.11),
     stats,
     vctrs,
     zeallot,
@@ -64,7 +64,7 @@ Imports:
 Config/testthat/edition: 3
 Depends: 
     R (>= 2.10)
-Remotes:  
+Remotes: 
     rdinnager/phyf,
     uyedaj/bayou,
     stla/cgalMeshes

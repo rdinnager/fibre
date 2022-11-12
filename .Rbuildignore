@@ -9,3 +9,5 @@
 ^docs$
 ^pkgdown$
 ^logo$
+^LICENSE\.md$
+^data-raw$
