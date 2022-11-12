@@ -60,7 +60,8 @@ Imports:
     ggtree,
     generics,
     ggplot2,
-    glmnet
+    glmnet,
+    memoise
 Config/testthat/edition: 3
 Depends: 
     R (>= 2.10)
