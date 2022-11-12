@@ -15,11 +15,14 @@ evo_autodecoder(
 )
 }
 \arguments{
-\item{latent_dim}{}
+\item{latent_dim}{Number of latent dimensions}
 
 \item{decoder}{A \code{torch::nn_model()} specifying a 'decoder' network architecture.
 The decoder network should accept a 2 dimensional \code{torch::torch_tensor()} with
 first d}
+}
+\value{
+A \code{torch::nn_module()}
 }
 \description{
 Create a Evolutionary Autodecoder Model

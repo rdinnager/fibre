@@ -1,15 +1,14 @@
 #' Create a Evolutionary Autodecoder Model
 #'
-#' @param latent_dim 
+#' @param latent_dim Number of latent dimensions
 #' @param decoder A `torch::nn_model()` specifying a 'decoder' network architecture. 
 #' The decoder network should accept a 2 dimensional `torch::torch_tensor()` with
 #' first d
 #'
-#' @return
+#' @return A `torch::nn_module()`
 #' @export
-#'
-#' @examples
 evo_autodecoder <- function(latent_dim, n_edges, decoder, reconstruction_loss, device, decoder_args = list(), loss_args = list()) {
+  self <- NULL
   torch::nn_module(
     "EAD",
 
@@ -28,7 +27,7 @@ evo_autodecoder <- function(latent_dim, n_edges, decoder, reconstruction_loss, d
     },
 
     decode = function(z, ...) {
-        self$decoder(z, ...)
+      self$decoder(z, ...)
     },
     
     encode = function(x, rates) {
@@ -36,14 +35,14 @@ evo_autodecoder <- function(latent_dim, n_edges, decoder, reconstruction_loss, d
     },
 
     reparameterize = function(mean, log_var) {
-        std <- torch_tensor(0.5, device = device) * log_var
-        eps <- torch_randn_like(std)
+        std <- torch::torch_tensor(0.5, device = device) * log_var
+        eps <- torch::torch_randn_like(std)
         eps * std + mean
     },
 
     loss_function = function(reconstruction, observed) {
         reconstruction_loss <- rlang::exec(self$reconstruction_loss, reconstruction = reconstruction, observed = observed, !!!loss_args)
-        kl_loss <- torch_tensor(-0.5, device = device) * torch_sum(torch_tensor(1, device = "cuda") + self$latent_rates_log_vars - self$latent_rates_means^2 - self$latent_rates_log_vars$exp())
+        kl_loss <- torch::torch_tensor(-0.5, device = device) * torch::torch_sum(torch_tensor(1, device = "cuda") + self$latent_rates_log_vars - self$latent_rates_means^2 - self$latent_rates_log_vars$exp())
         loss <- reconstruction_loss + kl_loss
         list(loss, reconstruction_loss, kl_loss)
     },
@@ -57,7 +56,7 @@ evo_autodecoder <- function(latent_dim, n_edges, decoder, reconstruction_loss, d
     },
 
     sample = function(num_samples, current_device) {
-        z <- torch_randn(num_samples, self$latent_dim)
+        z <- torch::torch_randn(num_samples, self$latent_dim)
         z <- z$to(device = current_device)
         samples <- rlang::exec(self$decode, z = z, !!!decoder_args)
         samples

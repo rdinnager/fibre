@@ -16,6 +16,9 @@ NULL
 
 }
 
+#' @importFrom methods new
+#' @importFrom stats as.formula coef complete.cases formula predict rnorm sd setNames terms.formula
+#' @importFrom utils data
 .onLoad <- function(libname, pkgname) {
   make_root2tip <<- memoise::memoise(make_root2tip)
   make_paths <<- memoise::memoise(make_paths)

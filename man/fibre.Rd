@@ -88,15 +88,15 @@ predictors <- mtcars[, -1]
 outcome <- mtcars[, 1]
 
 # XY interface
-mod <- fibre(predictors, outcome)
+#mod <- fibre(predictors, outcome)
 
 # Formula interface
-mod2 <- fibre(mpg ~ ., mtcars)
+#mod2 <- fibre(mpg ~ ., mtcars)
 
 # Recipes interface
-library(recipes)
-rec <- recipe(mpg ~ ., mtcars)
-rec <- step_log(rec, disp)
-mod3 <- fibre(rec, mtcars)
+#library(recipes)
+#rec <- recipe(mpg ~ ., mtcars)
+#rec <- step_log(rec, disp)
+#mod3 <- fibre(rec, mtcars)
 
 }

@@ -28,20 +28,15 @@ Suggests:
     RPANDA,
     testthat (>= 3.0.0),
     INLA,
-    RRphylo,
-    bayou,
-    slouch,
     tidytree,
     recipes,
     learnr,
-    cgalMeshes (>= 0.1.0.9000),
     roxygen2
 VignetteBuilder: knitr
 Imports: 
     ape,
     dplyr,
     igraph,
-    parallel,
     magrittr,
     fastmatch,
     MCMCglmm,
@@ -57,16 +52,19 @@ Imports:
     torch,
     glue,
     Matrix,
-    ggtree,
     generics,
     ggplot2,
     glmnet,
-    memoise
+    memoise,
+    purrr,
+    skimr,
+    cli,
+    tidyr,
+    methods,
+    utils
 Config/testthat/edition: 3
 Depends: 
     R (>= 2.10)
 Remotes: 
-    rdinnager/phyf,
-    uyedaj/bayou,
-    stla/cgalMeshes
+    rdinnager/phyf
 URL: https://rdinnager.github.io/fibre/

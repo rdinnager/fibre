@@ -21,10 +21,10 @@
 #' test <- mtcars[21:32, -1]
 #'
 #' # Fit
-#' mod <- fibre(mpg ~ cyl + log(drat), train)
+#' #mod <- fibre(mpg ~ cyl + log(drat), train)
 #'
 #' # Predict, with preprocessing
-#' predict(mod, test)
+#' #predict(mod, test)
 #'
 #' @export
 predict.fibre <- function(object, new_data = NULL, type = "numeric", ...) {

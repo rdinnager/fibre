@@ -51,7 +51,9 @@ second element is the ancestral rate of evolution.}
 
 \item{nsim}{Number of simulation to run.}
 
-\item{temp_trend_mean}{}
+\item{pos_strat}{?}
+
+\item{temp_trend_mean}{A temporal trend in rates.}
 }
 \value{
 A vector or matrix (for \code{nsim > 1}) containing simulated trait values

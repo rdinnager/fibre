@@ -39,12 +39,12 @@ shape_data_inla <- function(pfcs, predictors,
   if("(Intercept)" %in% colnames(predictors)) {
     d <- diag(ny)
     ints <- tibble_block(as.data.frame(d), rep(list(predictors %>%
-                                     dplyr::select(`(Intercept)`)),
+                                     dplyr::select(.data$`(Intercept)`)),
                                 ny))
     colnames(ints) <- paste0("Intercept_", seq_len(ny))
     predictors <- dplyr::bind_cols(ints,
                                   dplyr::bind_rows(rep(list(predictors %>%
-                                                              dplyr::select(-`(Intercept)`)), ny)))
+                                                              dplyr::select(-.data$`(Intercept)`)), ny)))
   }
   
   dat_pred <- purrr::imap(predictors,
@@ -158,7 +158,7 @@ compress_data <- function(predictor, name) {
     dplyr::group_data() %>%
     dplyr::mutate(num = seq_len(dplyr::n())) %>%
     dplyr::rowwise() %>%
-    dplyr::mutate(.cols = list(rep(num, length(.rows)))) %>%
+    dplyr::mutate(.cols = list(rep(.data$num, length(.data$.rows)))) %>%
     dplyr::ungroup()
   
   data <- compressed[1]
@@ -363,7 +363,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
   fixed_df <- fit$summary.fixed[ , c(1:3, 5)] %>%
     as.data.frame() %>%
     dplyr::mutate(parameter = renamer[rownames(fit$summary.fixed)]) %>%
-    dplyr::select(parameter, mean, sd, `0.025quant`, `0.975quant`)
+    dplyr::select(.data$parameter, .data$mean, .data$sd, .data$`0.025quant`, .data$`0.975quant`)
   rownames(fixed_df) <- NULL
   
   names(fit$marginals.fixed) <- renamer[names(fit$marginals.fixed)]
@@ -416,8 +416,8 @@ fibre_process_fit_inla <- function(fit, blueprint,
                              ~ INLA::inla.zmarginal(.x, silent = TRUE))[ , c(1:3, 7)] %>%
     as.data.frame() %>%
     dplyr::mutate(parameter = rownames(fit$summary.hyperpar)) %>%
-    dplyr::select(parameter, mean, sd, `0.025quant` = `quant0.025`, `0.975quant` = `quant0.975`) %>%
-    dplyr::mutate(parameter = gsub("Precision", "Variance", parameter))
+    dplyr::select(.data$parameter, .data$mean, .data$sd, `0.025quant` = .data$`quant0.025`, `0.975quant` = .data$`quant0.975`) %>%
+    dplyr::mutate(parameter = gsub("Precision", "Variance", .data$parameter))
   rownames(hyper_df) <- NULL
   
   hyper_df$parameter[grepl("y_pfc_", hyper_df$parameter)] <- paste("Variance for", 
@@ -436,7 +436,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
                      .name_repair = ~ vctrs::vec_as_names(..., 
                                                           repair = "unique", 
                                                           quiet = TRUE)) %>%
-    tidyr::unite(label, dplyr::everything()) %>%
+    tidyr::unite(.data$label, dplyr::everything()) %>%
     dplyr::bind_cols(fit$summary.fitted.values[seq_along(pfcs[[1]]), c(1:3, 5)] %>%
                        dplyr::rename_with(function(x) paste0(".pred_", x)))
   
@@ -573,7 +573,7 @@ fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                      .name_repair = ~ vctrs::vec_as_names(..., 
                                                           repair = "unique", 
                                                           quiet = TRUE)) %>%
-    tidyr::unite(label, dplyr::everything()) %>%
+    tidyr::unite(.data$label, dplyr::everything()) %>%
     dplyr::bind_cols(pred)
   
   new_fibre(

@@ -25,14 +25,12 @@
 #' second element is the ancestral rate of evolution.
 #' @param internal Logical value. If \code{TRUE} return trait states at internal nodes.
 #' @param nsim Number of simulation to run.
-#' @param pos_strat
-#' @param temp_trend_mean
+#' @param pos_strat ?
+#' @param temp_trend_mean A temporal trend in rates.
 #'
 #' @return A vector or matrix (for \code{nsim > 1}) containing simulated trait values
 #' for each tip if \code{internal = FALSE}, or for each node if \code{internal = TRUE}
 #' @export
-#'
-#' @examples
 simulate_traits <- function(phy, rate_model = c("continuous", "discrete"), temp_trend_rates = 0,
                             rate_change, rates = NULL, anc = c("1" = 0), internal = FALSE,
                             nsim = 1, pos_strat = c("none", "log", "add_const"),
