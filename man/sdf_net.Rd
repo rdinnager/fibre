@@ -18,5 +18,7 @@ A \code{torch::nn_module()}
 A signed distance field based neural network model for generating 3d shapes
 }
 \examples{
+if(torch::torch_is_installed()) {
 sdf_net()
+}
 }

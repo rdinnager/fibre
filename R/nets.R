@@ -7,7 +7,9 @@
 #' @export
 #'
 #' @examples
+#' if(torch::torch_is_installed()) {
 #' sdf_net()
+#' }
 sdf_net <- torch::nn_module("sdf_net",
 
                             initialize = function(n_latent = 64, breadth = 512) {
