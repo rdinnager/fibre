@@ -16,5 +16,7 @@ A \code{torch::nn_module()} with pre-trained weights
 Load a model
 }
 \examples{
+if(torch::torch_is_installed) {
 model <- load_model("bird_beaks")
+}
 }
