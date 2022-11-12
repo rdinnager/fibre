@@ -6,7 +6,9 @@
 #' @export
 #'
 #' @examples
+#' if(torch::torch_is_installed) {
 #' model <- load_model("bird_beaks")
+#' }
 load_model <- function(name) {
   
   switch(name,
