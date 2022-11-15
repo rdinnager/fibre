@@ -82,6 +82,8 @@ tutorial_options(exercise.checker = custom_checker)
 
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 
+knitr::knit_hooks$set(webgl = hook_webgl)
+
 options(crayon.enabled=TRUE)
 
 ```
@@ -134,7 +136,7 @@ Run 2D Macarthur-Levins competition model with evolution
 
 ## Phylogenetic Flows as a Data Structure
 
-```{r phyf_logo, echo=FALSE}
+```{r phyf_logo, echo=FALSE, echo=FALSE}
 knitr::include_graphics("images/phyf_logo.png")
 ```
 
@@ -271,7 +273,7 @@ system.time(
 
 ---
 
-```{r}
+```{r, context="data"}
 autoplot(vert_bmr %>% mutate(sim_trait = traits[ , 1]), sim_trait)
 ```
 
@@ -411,13 +413,13 @@ $$\mu_i \sim \text{Pflow}\left(\phi^2\right)$$
 
 Tobias, J. A., Sheard, C., Pigot, A. L., Devenish, A. J., Yang, J., Sayol, F., ... & Schleuning, M. (2022). AVONET: morphological, ecological and geographical data for all birds. *Ecology Letters*, **25(3)**, 581-597.
 
-```{r image1}
+```{r image1, echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_1.png")
 
 ```
 ---
 
-```{r image2}
+```{r image2, echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_2.png")
 ```
 
@@ -448,7 +450,7 @@ mod
 ls()
 ```
 
-```{r model_brownian_real, include=FALSE}
+```{r model_brownian_real, context="data", include=FALSE}
 mod <- fibre(scale(log(Mass + 1)) ~ bre_brownian(phlo),
              data = avonet)
 ```
@@ -493,7 +495,7 @@ ls()
 
 - It actually takes longer to plot the whole tree with ancestral estimates than it does to fit the model, so I made this plot earlier:
 
-```{r}
+```{r, context="data"}
 avonet_w_preds <- avonet %>% bind_cols(preds) %>%
   mutate(.obs = scale(log(Mass + 1)))
 autoplot(avonet_w_preds, .pred_mean)
@@ -521,7 +523,7 @@ water_bird_preds <- avonet_w_preds %>%
   pf_filter_with_mrca(label %in% c("Platalea_minor", "Pelecanus_occidentalis"))
 ```
 
-```{r}
+```{r, context="data"}
 p1 <- autoplot(water_bird_preds, 
                .pred_mean,
                layout = "rectangular") + xlim(0, 100)
@@ -533,7 +535,7 @@ p1 <- autoplot(water_bird_preds,
 - Because this `fibre` model is a fully Bayesian method, uncertainty in any estimate can easily be represented with the standard deviation of the posterior distribution.
 - Predictions automatically include this information in `.pred_sd`, and we can then plot them in the same way as with the prediction means:
 
-```{r preds3}
+```{r preds3, context="data"}
 p2 <- autoplot(water_bird_preds, 
               .pred_sd,
               layout = "rectangular") + xlim(0, 100)
@@ -544,7 +546,7 @@ p2
 
 - We can use tools from `{phyf}` to extract an order-level subtree:
 
-```{r preds4}
+```{r preds4, context="data"}
 Galliformes_preds <- avonet_w_preds %>%
   pf_filter_with_mrca(Order3 == "Galliformes")
 p3 <- autoplot(Galliformes_preds, 
@@ -555,7 +557,7 @@ p3
 
 ## Uncertainty
 
-```{r preds5}
+```{r preds5, context="data"}
 p4 <- autoplot(Galliformes_preds, .pred_mean, layout = "circular", suppress_tiplabels = TRUE) + 
   autoplot(Galliformes_preds, .pred_sd, layout = "circular", suppress_tiplabels = TRUE) 
 p4
@@ -659,7 +661,7 @@ ls()
 ```
 
 
-```{r lasso_real,include=FALSE}
+```{r lasso_real, context="data", include=FALSE}
 avonet_beaks <- avonet %>%
   mutate(Beak.Length_Culmen_tr = scale(log(Beak.Length_Culmen + 1))[ , 1],
          Beak.Length_Nares_tr = scale(log(Beak.Length_Nares + 1))[ , 1],
@@ -682,7 +684,7 @@ mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr +
 ls()
 ```
 
-```{r lasso2_real,include=FALSE}
+```{r lasso2_real, context="data", include=FALSE}
 mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo), family = "mgaussian",
                   data = avonet_beaks,
                   engine = "glmnet",
@@ -691,14 +693,14 @@ mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr +
 
 ## What does that model look like?
 
-```{r lasso_pred}
+```{r lasso_pred, context="data"}
 preds <- avonet_beaks %>% bind_cols(predict(mod_mult, avonet_beaks))
 autoplot(preds, .pred_Beak.Length_Culmen_tr)
 ```
 
 ## Sensible predictions?
 
-```{r lasso_pred2, echo=FALSE}
+```{r lasso_pred2, context="data", echo=FALSE}
 ggplot(preds, aes(Beak.Length_Culmen_tr, .pred_Beak.Length_Culmen_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Length_Nares_tr, .pred_Beak.Length_Nares_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Width_tr, .pred_Beak.Width_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Depth_tr, .pred_Beak.Depth_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + plot_layout(ncol = 2) & theme_minimal()
 ```
 
@@ -727,7 +729,7 @@ rates <- mod_mult$random[[1]] %>%
 
 - Plot normalised vectors:
 
-```{r rates2}
+```{r rates2, context="data"}
 ggpairs(as.data.frame(rates %>% select(-parameter, -norm)),
         upper = list(continuous = "density", combo = "box_no_facet", discrete = "count", na = "na"),) +
   theme_minimal()
@@ -749,7 +751,7 @@ ggpairs(as.data.frame(rates %>% select(-parameter, -norm)),
 
 ### Collaborator
 
-```{r image3, fig.width=300}
+```{r image3, fig.width=300, echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_3.png")
 
 ```
@@ -810,7 +812,7 @@ Marian Kleinberg - Technische Universität Dortmund (now at Hello Games!)
 
 ## {.fullslide}
 
-```{r anim0, out.width=1100}
+```{r anim0, out.width=1100, echo=FALSE}
 knitr::include_graphics("images/Autodecoding_evolution_slides/bird_beak_latent_space_optimized.gif")
 
 ```
@@ -822,7 +824,7 @@ knitr::include_graphics("images/Autodecoding_evolution_slides/bird_beak_latent_s
 
 ## {.fullslide}
 
-```{r anim1, fig.width=300}
+```{r anim1, fig.width=300, echo=FALSE}
 knitr::include_graphics("images/Autodecoding_evolution_slides/beak_evolve.gif")
 
 ```
@@ -831,7 +833,7 @@ knitr::include_graphics("images/Autodecoding_evolution_slides/beak_evolve.gif")
 
 - Both the trained model and the estimated latent codes for 2,020 birds
 
-```{r latent_birds}
+```{r latent_birds, context="data"}
 bird_beak_codes
 beak_mod <- load_model("bird_beaks")
 beak_mod
@@ -841,14 +843,14 @@ beak_mod
 
 - *Rhodothraupis celaeno* - Crimson-collared Grosbeak
 
-```{r bird1, out.height='50%', out.width='50%'}
+```{r bird1, out.height='50%', out.width='50%', echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_6.png")
 
 ```
 
 ## Make a mesh from the model
 
-```{r latent_birds2}
+```{r latent_birds2, context="data"}
 latent <- bird_beak_codes %>%
   dplyr::filter(label == "Rhodothraupis_celaeno") %>%
   dplyr::select(dplyr::starts_with("latent_")) %>%
@@ -859,7 +861,7 @@ latent
 
 ## Make a mesh from the model
 
-```{r latent_birds3}
+```{r latent_birds3, context="data", webgl=TRUE}
 mesh <- beak_mod$get_mesh(latent)
 shade3d(mesh, col = "gold")
 ```
@@ -871,7 +873,7 @@ shade3d(mesh, col = "gold")
 
 ## {.fullslide}
 
-```{r anim2, out.width=1100}
+```{r anim2, out.width=1100, echo=FALSE}
 knitr::include_graphics("images/Autodecoding_evolution_slides/lizard range.gif")
 
 ```
@@ -899,7 +901,7 @@ knitr::include_graphics("images/Autodecoding_evolution_slides/lizard range.gif")
 
 - I did this as part of a Postdoc with the I University of Canberra in Australia
 
-```{r logo, out.width=150}
+```{r logo, out.width=150, echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_5.png")
 ```
 
@@ -913,14 +915,14 @@ knitr::include_graphics("images/fibre_presentation_insertimage_5.png")
 
 ## {.fullslide}
 
-```{r example1, out.height=700, out.width=1100}
+```{r example1, out.height=700, out.width=1100, echo=FALSE}
 knitr::include_graphics("images/slimr_example_fig_1.png")
 
 ```
 
 ## {.fullslide}
 
-```{r example2, out.height=700, out.width=1100}
+```{r example2, out.height=700, out.width=1100, echo=FALSE}
 knitr::include_graphics("images/slimr_verbs_example.png")
 
 ```
