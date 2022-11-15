@@ -1,0 +1,169 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## High Dimensional Phylogenetic Modeling
+
+In this notebook, we will work with the in development R packages `{phyf}` and `{fibre}` to try out some modelling of high dimensional traits.
+
+## Latent Trait Space
+
+The high dimensional traits we will be working with are actually estimated 'latent traits', from a trained deep learning model called an autodecoder. Any vector of latent traits can be converted into a full 3d bird beak using a pretrained neural network that is included in the `{fibre}` package.
+
+## Working with phylogenetic data in the `{phyf}` package
+
+`{phyf}` is a package for working with phylogenetic data that implements a novel phylogenetic data structure called a 'phylogenetic flow'. These structures are convenient for fast types of phylogenetic trait models and also make it easy to manipulate a phylogeny along with associated data.
+
+Let's start by loading the packages we need today, and then explore the dataset we will work with!
+
+```{r}
+library(phyf)
+library(fibre)
+library(dplyr)
+library(rgl)
+library(patchwork)
+data(bird_beak_codes)
+```
+
+`bird_beak_codes` is a `pf` object. A `pf` object is a type of `data.frame` that includes phylogenetic information in a special type of column. By convention this column is called `phlo`. Let's print it and have a look:
+
+```{r}
+print(bird_beak_codes)
+```
+
+The `phlo` column is a special R vector called a `pfc` object (for phylogenetic flow collection). For those familiar with spatial analysis in R, you might have noticed that `{phyf}` is heavily inspired by the `sf` package, and uses similar naming conventions. The `pfc` object can be extracted in the usual way:
+
+```{r}
+bird_beak_codes$phlo
+```
+
+The printout gives a sense of the underlying structure of a phylogenetic flow. Essentially it is a list of pathways (or 'flows') from the root of the phylogeny to its tips (or internal nodes). This makes it have a fair bit of redundant information in it, but this is counter-intuitively part of what makes it so efficient. Another way of visualizing the structure is as a sparse matrix (and this is where the efficiency really lies). Each row is a 'flow' from root to a terminal node (internal nodes are 'fake' terminal nodes). Each column is an edge on the phylogeny (named by it's end node).
+
+```{r}
+pf_as_sparse(bird_beak_codes)
+```
+
+It is easy to convert a `pf` or `pfc` into a `phylo` object for `ape`. It is also simple to make a `pf` or `pfc` from a `phylo` object.
+
+```{r}
+pf_as_phylo(bird_beak_codes)
+```
+
+It is easy to convert a `pf` or `pfc` into a `phylo` object for `ape`. It is also simple to make a `pf` or `pfc` from a `phylo` object.
+
+```{r}
+pf_as_phylo(bird_beak_codes)
+```
+
+```{r}
+pf_as_pf(ape::rtree(100))
+```
+
+The data we are interested in for this example are 'latent codes' that were estimated previously in a deep learning model trained in PyTorch (using Python). The model has been ported over to R (using the `torch` package). Let's have a look at them. One can use any `tidyverse` 'verbs' on a `pf` object.
+
+```{r}
+codes <- bird_beak_codes %>%
+  select(label, starts_with("latent"))
+codes
+```
+
+What do the first few look like?
+
+```{r}
+plot(as_tibble(codes) %>% select(latent_code_1, latent_code_2))
+```
+
+## Exercise 1
+
+Look at the standard deviation of every latent trait. Do you see any pattern? How is this different from what you'd expect from, for example, PCA? Use the box below to try stuff out:
+
+```{r}
+
+```
+
+Plotting `pf` object is also simple. Just plot the tree by calling `plot()`. To plot a data column with the tree use the `autoplot()` method:
+
+```{r}
+plot(bird_beak_codes, type = "fan")
+```
+
+```{r}
+autoplot(bird_beak_codes, latent_code_1)
+```
+
+## Exercise 2
+
+Plot the tow more latent codes on the phylogeny as separate plots (any ones). Add them together with `+`. `{patchwork}` does the rest.
+
+```{r}
+
+```
+
+## Let's Run A Model
+
+## Choose a Clad to Model
+
+Even though `{fibre}` is pretty fast, we might not want to spend the time to fit a model to all 64 variables for all \~13,000 or so edges in the phylogeny (though this would take less than half an hour). So, the first thing we will do it filter our dataset to some clade of interest, and in the process learn how you can easily filter a `pf` to a subtree.
+
+We will use the `pf_filter_with_mrca()` function. `pf_filter_with_mrca()` filters a `pf` with an index into the phylogenetic `pfc`. It doesn't just filter on that index, but instead finds the most recent common ancestor (MRCA) of the nodes referenced in the index. It then filters to all elements of the `pf` that represent the descendants of that MRCA. This way you can just feed in a set of species that represent the clade, and the filter will return all species in the clade as well as the internal nodes. Here is an example that returns all of the tips and internal nodes in the Pelecaniformes, by indexing with just two species whose MRCA is the root node of the clade.
+
+```{r}
+## use spoonbill and pelican
+Pelecaniformes <- bird_beak_codes %>%
+  pf_filter_with_mrca(label %in% c("Platalea_leucorodia", "Pelecanus_crispus"))
+plot(Pelecaniformes)
+```
+
+We can use any `filter()` style syntax with this function. Here we use the `"Order"` column to get just "Tinamiformes".
+
+```{r}
+## use spoonbill and pelican
+Tinamiformes <- bird_beak_codes %>%
+  pf_filter_with_mrca(Order == "TINAMIFORMES")
+plot(Tinamiformes)
+```
+
+Use the box below to filter `bird_beak_codes` to whatever subset of species you want. You will probably want at least a few hundred species to really show the capabilities of `{fibre}`
+
+```{r}
+
+
+
+```
+
+`{fibre}` accepts a matrix as the left hand side of the formula to save having to type out a large number of variables. For smaller numbers of traits, you could use the following syntax as well: `trait_1 + trait_2 + trait_3 ~ bre_brownian(phlo)`. `{fibre}` currently only supports a formula interface, but will soon support specifying the model by passing `x` and `y` matrices or data.frames, and also will support `{tidymodels}` `recipe` objects. This is how you would run the model for Pelecaniformes:
+
+```{r}
+codes <- Pelecaniformes %>%
+  select(starts_with("latent_")) %>%
+  as.matrix() %>%
+  scale()
+
+Pelecaniformes$codes <- codes
+fit <- fibre(codes ~ bre_brownian(phlo, standardise = FALSE), data = Pelecaniformes, engine = "glmnet",
+             family = "mgaussian", engine_options = list(trace.it = TRUE))
+
+fit
+```
+
+## Predict
+
+```{r}
+preds <- Pelecaniformes %>%
+  bind_cols(predict(fit, Pelecaniformes))
+```
+
+## Extract ancestral predictions
+
+```{r}
+pred_anc <- preds %>%
+  filter(!is_tip) %>%
+  mutate(norm = sqrt(rowSums(across(starts_with(".pred_codes.latent"), ~.x^2)))) %>%
+  arrange(desc(norm))
+
+pred_anc %>% select(label, norm)
+```
+
+The above lists the edges with the largest predicted change across the 64 latent codes (the highest euclidean norm for the rates in the 64 dimensions)
+

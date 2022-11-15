@@ -1,0 +1,105 @@
+---
+title: "Miscellaneous Stuff"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Miscellaneous Stuff}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Incorporating correlations
+### Phylogenetic 'factor analysis'
+
+- If we really want to include correlations among traits, use 'latent traits'.
+- We can fit such a model with `{fibre}`, which uses `{INLA}` 
+- Response trait variables are modeled as a linear function of latent variables (with the error term omitted for brevity):
+
+$$\text{trait}_{i,j} = \text{root}_j + \sum_k\beta_{j, k}\mu_{i, k}$$
+$$\mu_{i, k} \sim \text{Pflow}\left(\phi_k^2\right)$$
+where $j$ is refers to the $j$th trait dimension, and $k$ refers to the $k$th latent trait dimension. 
+
+---
+
+Essentially this is dimension reduction, but where the latent space is constrained to be consistent with a model of evolutionary change on a phylogeny. The code for that model would look like this:
+
+```{r multivariate, eval=FALSE}
+mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo, latent = 2), 
+                  data = avonet_beaks,
+                  engine_options = list(verbose = TRUE))
+```
+
+```{r multivariate-check}
+ls()
+```
+
+---
+
+This model is not fully implemented, but should be available as a new feature in the package shortly.
+
+
+## Let's try a few interesting variations on the basic model
+### A tale of two phylogenies
+
+- We can model traits that are characteristic of pairs of species, instead of single species.
+- If these species pairs are from separate clades (e.g. a bipartite network), then we can model the trait as an interaction between 'latent' traits evolving on two phylogenies.
+
+The model is:
+
+$$\text{trait}_{i,j} = \mu_i + \mu_j + \mu_{i}^\text{int} \mu_{j}^\text{int}$$
+$$\mu_i \sim \text{Pflow}_i\left(\phi_i^2\right); \mu_j \sim \text{Pflow}_j\left(\phi_j^2\right)$$
+$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
+
+---
+
+- It turns out that if:
+
+$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
+
+then:
+
+$$\mu_\text{int} = \mu_{i}^\text{int} \mu_{j}^\text{int} \sim \text{Pflow}_\text{i}\otimes\text{Pflow}_\text{j}\left(\phi_\text{int}^2\right)$$
+- which means that the interaction can be modeled with a single parameter that is distributed according to a phylogenetic flow model that is the Kronecker product of the two interacting phylogenetic flows.
+
+## A Tale of Two Phylogenies
+
+- This model is equivalent to the models independently published by Hadfield et al. and Ives et al. in 2008.
+- However, like the single phylogeny models, the `{fibre}` model estimates 'rates' for the interaction, which in this case gives a measure of what combinations of nodes in the two phylogenies contribute the most to an interaction.
+
+```{r interaction2, exercise=TRUE}
+mod_int <- fibre(EFFECTSIZE1 ~ bre_brownian(plant_phlo) + bre_brownian(fungus_phlo) + 
+                   bre_brownian(plant_phlo * fungus_phlo) +
+                   re(PlantSpecies2018) +
+                   re(FungalGenus2018) +
+                   bre_brownian(fungus_phlo * pf_as_pfc(PlantSpecies2018)) +
+                   bre_brownian(plant_phlo * pf_as_pfc(FungalGenus2018)),
+                 data = plant_fungus %>%
+                   filter(plant_is_tip & fungus_is_tip),
+                 engine_options = list(verbose = TRUE))
+
+mod_int
+```
+
+```{r interaction2-check}
+ls()
+```
+
+### A tale of two phylogenies
+
+- Because of the large number of effects, this model also takes a little while (~ approx 30 minutes on my laptop)
+
+```{r interaction3, exercise=TRUE}
+mod_int <- readr::read_rds("extdata/mod_int.rds")
+
+mod_int
+```
+
+```{r interaction3-check}
+ls()
+```

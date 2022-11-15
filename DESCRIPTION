@@ -31,7 +31,9 @@ Suggests:
     tidytree,
     recipes,
     learnr,
-    roxygen2
+    roxygen2,
+    rgl,
+    patchwork
 VignetteBuilder: knitr
 Imports: 
     ape,

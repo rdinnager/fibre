@@ -40,6 +40,9 @@ runtime: shiny_prerendered
 }
 ```
 
+```{r, comment="", results="asis", echo=FALSE}
+old.hooks <- fansi::set_knit_hooks(knitr::knit_hooks)
+```
 
 ```{r setup, include=FALSE}
 library(learnr)
@@ -77,7 +80,7 @@ custom_checker <- function(label, user_code, check_code, envir_result, evaluate_
 
 tutorial_options(exercise.checker = custom_checker)
 
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 
 options(crayon.enabled=TRUE)
 
@@ -131,7 +134,7 @@ Run 2D Macarthur-Levins competition model with evolution
 
 ## Phylogenetic Flows as a Data Structure
 
-```{r phyf_logo}
+```{r phyf_logo, echo=FALSE}
 knitr::include_graphics("images/phyf_logo.png")
 ```
 
@@ -140,7 +143,7 @@ knitr::include_graphics("images/phyf_logo.png")
 
 ## A simple example
 
-```{r phyf_intro, exercise=TRUE}
+```{r phyf_intro}
 set.seed(4534)
 library(fibre)
 library(phyf)
@@ -157,20 +160,11 @@ library(rgl)
 
 ```
 
-```{r phyf_intro-check}
-ls()
-```
-
 ## A test tree
 
-```{r phyf_intro2, exercise=TRUE}
-set.seed(4534)
+```{r phyf_intro2}
 tree <- rcoal(4)
 plot(tree, show.node.label = TRUE)
-```
-
-```{r phyf_intro2-check}
-ls()
 ```
 
 ## As a `pfc` object
@@ -181,14 +175,11 @@ ls()
 
 ---
 
-```{r phyf_intro3, exercise=TRUE}
+```{r phyf_intro3}
 tree_pfc <- pf_as_pfc(tree)
 tree_pfc
 ```
 
-```{r phyf_intro3-check}
-ls()
-```
 
 ## Tips vs. Nodes
 
@@ -199,34 +190,21 @@ ls()
 
 ## Tips vs. Internal Nodes
 
-```{r phyf_intro4, exercise=TRUE}
+```{r phyf_intro4}
 tree_tips <- pf_tips(tree_pfc)
 tree_tips
 
 ```
 
-```{r phyf_intro4-check}
-ls()
-```
-
-```{r phyf_intro5, exercise=TRUE}
+```{r phyf_intro5}
 plot(pf_as_phylo(tree_pfc))
 plot(pf_as_phylo(tree_tips))
 ```
 
-```{r phyf_intro5-check}
-ls()
-```
-
-
 ## A Phylogenetic Flow object can be represented as sparse matrix
 
-```{r phyf_intro6, exercise=TRUE}
+```{r phyf_intro6}
 pf_as_sparse(tree_pfc)
-```
-
-```{r phyf_intro6-check}
-ls()
 ```
 
 ## {.fullslide}
@@ -248,7 +226,7 @@ Where $\text{trait}_0$ is the trait value at the root node.
 
 With `{phyf}` we can do tree 'arithmetic'
 
-```{r tree_arith, exercise=TRUE}
+```{r tree_arith}
 rates <- matrix(rnorm(6), nrow = 1)
 rates
 
@@ -256,60 +234,45 @@ tree_pfc
 tree_pfc * rates
 ```
 
-```{r tree_arith-check}
-ls()
-```
-
 ---
 
 With `{phyf}` we can do tree 'arithmetic'
 
-```{r tree_arith2, exercise=TRUE}
+```{r tree_arith2}
 root <- 2
 root + pf_flow_sum(tree_pfc * rates)
-```
-
-```{r tree_arith2-check}
-ls()
 ```
 
 ---
 
 But that whole procedure can be done with one matrix multiplication
 
-```{r tree_arith3, exercise=TRUE}
+```{r tree_arith3}
 root + pf_flow_sum(tree_pfc * rates)
 root + pf_as_sparse(tree_pfc) %*% t(rates)
-```
-
-```{r tree_arith3-check}
-ls()
 ```
 
 ## This is very efficient
 
 - Simulate trait evolution on large tree
 
-```{r sim_vert, exercise=TRUE}
-vert_bmr
+```{r sim_vert}
 sum(vert_bmr$is_tip)
-```
-
-```{r sim_vert-check}
-ls()
+vert_bmr
 ```
 
 ---
 
-```{r sim_vert2, exercise=TRUE}
+```{r sim_vert2}
 system.time(
   traits <- root + pf_as_sparse(vert_bmr) %*% matrix(rnorm(pf_nedges(vert_bmr$phlo)))
 )
-autoplot(vert_bmr %>% mutate(sim_trait = traits[ , 1]), sim_trait)
 ```
 
-```{r sim_vert2-check}
-ls()
+---
+
+```{r}
+autoplot(vert_bmr %>% mutate(sim_trait = traits[ , 1]), sim_trait)
 ```
 
 ## But how to we estimate the parameters?
@@ -337,14 +300,21 @@ $$r_e \sim \text{Normal}\left(0, \tau^2\right)$$
 - Phylogenetic trait models based on Brownian motion are classic models (and often unfairly criticized, more on that later).
 - Brownian motion is based on a stochastic process know as the Wiener process. 
 - They should be called phylogenetic Wiener models, because the historical connection with the physical process of Brownian motion has not aided our interpretations of this model in my opinion.
-- The Wiener process is characterized by four properties:
+- The Wiener process $W_t$ is characterized by four properties:
+  1) $W_0$ = 0
+  2) $W$ has independent increments for all $t$
+  3) $W$ has Gaussian increments: $W_{t+\delta} - W_t \sim \mathcal{N}\(0, \mu\)$
+  4) $W_t$ is continuous in time $t$
 
 ## In a phylogenetic context, this all adds up to...
 
 - The change in a trait along the edges of a phylogeny are distributed according to
 
 $$\Delta\text{trait}_e \sim \text{Normal}\left(0, \phi^2 l_e\right)$$
-where $\phi^2$ is the evolutionary 'rate' parameter (more often referred to as $\sigma^2$, but I reserve that for the observation-level error distribution). But in the phylogenetic branch regression we have:
+where $\phi^2$ is the evolutionary 'rate' parameter (more often referred to as $\sigma^2$, but I reserve that for the observation-level error distribution). 
+
+Recall, in the phylogenetic branch regression we have:
+
 $$\Delta\text{trait}_e = l_e r_e$$
 
 ---
@@ -374,14 +344,10 @@ $$\sqrt{l_e}r_e \sim \text{Normal}\left(0, \phi^2\right)$$
 - The traditional phylogenetic covariance matrix has a dense inverse
 - The inverse is the precision matrix of the tips, and it encodes patterns of conditional independence
 
-```{r cophenetic, exercise=TRUE}
+```{r cophenetic}
 ttree <- rcoal(6)
 covar <- Matrix::Matrix(vcv(ttree))
 Matrix::solve(covar)
-```
-
-```{r cophenetic-check}
-ls()
 ```
 
 ## Computational Advantages
@@ -389,15 +355,13 @@ ls()
 - The phylogenetic covariance matrix can be derived from the phylogenetic flow matrix as 
 $$\sum_\text{phy} = \sqrt{\sum_{\text{flow}\left[\text{tips}\right]}} {\sqrt{\sum_{\text{flow}\left[\text{tips}\right]}}^\text{T}}$$
 
-```{r cophenetic2, exercise=TRUE}
+```{r cophenetic2}
 ttree_pfc <- pf_as_pfc(ttree)
 tip_sparse <- pf_as_sparse(sqrt(pf_tips(ttree_pfc)))
 covar2 <- tip_sparse %*% Matrix::t(tip_sparse)
 all.equal(as.matrix(covar2), as.matrix(covar))
-```
-
-```{r cophenetic2-check}
-ls()
+## phyf includes function to calculate the above
+pf_vcv(ttree_pfc)
 ```
 
 ## Computational Advantages
@@ -405,18 +369,17 @@ ls()
 - Including the ancestors makes the precision matrix much sparser
 - This is because most tips are conditionally independent when conditioning on their ancestors
 
-```{r cophenetic3, exercise=TRUE}
-ttree_pfc <- pf_as_pfc(ttree)
-tip_sparse_anc <- pf_as_sparse(sqrt(ttree_pfc))
-covar_anc <- tip_sparse_anc %*% Matrix::t(tip_sparse_anc)
-covar_anc
+```{r cophenetic3}
+prec <- Matrix::solve(covar)
+prec
 
-Matrix::drop0(Matrix::solve(covar_anc), tol = 0.001)
-Matrix::nnzero()
+prec_anc <- Matrix::drop0(Matrix::solve(pf_vcv(ttree_pfc), tol = 0.001))
+prec_anc
 ```
 
-```{r cophenetic3-check}
-ls()
+```{r}
+Matrix::nnzero(prec)
+Matrix::nnzero(prec_anc)
 ```
 
 ## Computational Advantages
@@ -444,7 +407,7 @@ $$\mu_i \sim \text{Pflow}\left(\phi^2\right)$$
 
 - Let's do an example
 - Run a simple univariate phylogenetic Brownian motion model on body mass of most birds
-- The `phyf` package includes a `pf` version of AVONET ()
+- The `phyf` package includes a `pf` version of AVONET
 
 Tobias, J. A., Sheard, C., Pigot, A. L., Devenish, A. J., Yang, J., Sayol, F., ... & Schleuning, M. (2022). AVONET: morphological, ecological and geographical data for all birds. *Ecology Letters*, **25(3)**, 581-597.
 
@@ -458,13 +421,10 @@ knitr::include_graphics("images/fibre_presentation_insertimage_1.png")
 knitr::include_graphics("images/fibre_presentation_insertimage_2.png")
 ```
 
+---
 
-```{r avonet, exercise=TRUE}
+```{r avonet}
 avonet
-```
-
-```{r avonet-check}
-ls()
 ```
 
 ## A simple Brownian motion model!
@@ -488,6 +448,11 @@ mod
 ls()
 ```
 
+```{r model_brownian_real, include=FALSE}
+mod <- fibre(scale(log(Mass + 1)) ~ bre_brownian(phlo),
+             data = avonet)
+```
+
 ## Predictions
 
 - It is simple to generate predictions from the model. Since the `pf` object included ancestral nodes in it, predictions include ancestral character estimates.
@@ -499,6 +464,11 @@ preds
 
 ```{r preds1-check}
 ls()
+```
+
+```{r preds1_real, include=FALSE}
+preds <- predict(mod, avonet)
+preds
 ```
 
 ## Predictions
@@ -521,13 +491,21 @@ ls()
 
 ## Predictions
 
-- It actually takes longer to plot the whole tree with ancestral estimates than it does to fit the model, so I won't plot the whole tree here.
-- Instead I will show a subtree
+- It actually takes longer to plot the whole tree with ancestral estimates than it does to fit the model, so I made this plot earlier:
+
+```{r}
+avonet_w_preds <- avonet %>% bind_cols(preds) %>%
+  mutate(.obs = scale(log(Mass + 1)))
+autoplot(avonet_w_preds, .pred_mean)
+```
+
+## Show a subtree
+
 - With `{phyf}` we can easily subset the `pf` object to a particular clade, which will take all the predictions with it
 
 ```{r preds2, exercise=TRUE}
 water_bird_preds <- avonet_w_preds %>%
-  filter(pf_is_desc(phlo, pf_mrca(phlo[c("Platalea_minor", "Pelecanus_occidentalis")])))
+  pf_filter_with_mrca(label %in% c("Platalea_minor", "Pelecanus_occidentalis"))
 p <- autoplot(water_bird_preds, 
               .pred_mean,
               layout = "rectangular") + xlim(0, 100)
@@ -538,55 +516,49 @@ p
 ls()
 ```
 
+```{r preds2_real,include=FALSE}
+water_bird_preds <- avonet_w_preds %>%
+  pf_filter_with_mrca(label %in% c("Platalea_minor", "Pelecanus_occidentalis"))
+```
+
+```{r}
+p1 <- autoplot(water_bird_preds, 
+               .pred_mean,
+               layout = "rectangular") + xlim(0, 100)
+```
+
+
 ## Prediction Uncertainty
 
 - Because this `fibre` model is a fully Bayesian method, uncertainty in any estimate can easily be represented with the standard deviation of the posterior distribution.
 - Predictions automatically include this information in `.pred_sd`, and we can then plot them in the same way as with the prediction means:
 
-```{r preds3, exercise=TRUE}
+```{r preds3}
 p2 <- autoplot(water_bird_preds, 
               .pred_sd,
               layout = "rectangular") + xlim(0, 100)
 p2
 ```
 
-```{r preds3-check}
-ls()
-```
-
 ## Get an Order subtree
 
 - We can use tools from `{phyf}` to extract an order-level subtree:
 
-```{r preds4, exercise=TRUE}
+```{r preds4}
 Galliformes_preds <- avonet_w_preds %>%
-  filter(pf_is_desc(phlo, pf_mrca(phlo[which(Order3 == "Galliformes")])))
+  pf_filter_with_mrca(Order3 == "Galliformes")
 p3 <- autoplot(Galliformes_preds, 
               .pred_mean,
               layout = "circular") + xlim(0, 100) 
 p3
 ```
 
-```{r preds4-check}
-ls()
-```
-
 ## Uncertainty
 
-```{r preds5, exercise=TRUE}
-p4 <- autoplot(Galliformes_preds, 
-               .pred_mean,
-               layout = "circular",
-               suppress_tiplabels = TRUE) + 
-  autoplot(Galliformes_preds, 
-           .pred_sd,
-           layout = "circular",
-           suppress_tiplabels = TRUE) 
+```{r preds5}
+p4 <- autoplot(Galliformes_preds, .pred_mean, layout = "circular", suppress_tiplabels = TRUE) + 
+  autoplot(Galliformes_preds, .pred_sd, layout = "circular", suppress_tiplabels = TRUE) 
 p4
-```
-
-```{r preds5-check}
-ls()
 ```
 
 ## But this is just a 'Brownian Motion' model, right?
@@ -605,29 +577,11 @@ ls()
 - The connection between 'Brownian motion' and ridge regression reveals that the purpose of the Gaussian assumption on evolutionary rates is regularization (or 'shrinkage')
 - For example:
 
-```{r gaussian_assumption, exercise=TRUE}
+```{r gaussian_assumption}
 rates <- mod$random[[1]]$mean
 hist(rates, breaks = 100)
 qqnorm(rates)
 qqline(rates)
-```
-
-```{r gaussian_assumption-check}
-ls()
-```
-
-## What are the most extreme rates?
-
-```{r gaussian_assumption2, exercise=TRUE}
-avonet_rates <- avonet %>%
-  left_join(mod$random[[1]] %>%
-              select(label = ID,
-                     rate = mean)) %>%
-  mutate(extreme_rate = scale(rate)[ ,1] > 4)
-```
-
-```{r gaussian_assumption2-check}
-ls()
 ```
 
 ## More Complicated Models
@@ -646,7 +600,7 @@ Some model classes `fibre` can (or will) fit:
 ## Extending Beyond "Gaussian" Rates
 
 - Reconceptualising phylogenetic trait evolution models as a form of regularisation or 'shrinkage' allows us to extend models using different 'shrinkage' distributions for the evolutionary rates.
-- There is large family of
+- There is large family of regularization priors that can extend the basic model.
 
 ## {.fullslide}
 
@@ -666,9 +620,8 @@ Some model classes `fibre` can (or will) fit:
 
 ---
 
-- `{fibre}` currently supports 'Gaussian' (ridge) and 'Laplacian' (LASSO) based models through the `"glmnet"` engine.
+- `{fibre}` currently supports 'Gaussian' (ridge) through the `"inla"` engine and 'Laplacian' (LASSO) based models through the `"glmnet"` engine.
 - I have plans to implement the the Horseshoe as well a full Bayesian version of the Laplacian model (`{glmnet}` uses a penalized likelihood approach)
-
 
 ## Multivariate Models
 
@@ -705,6 +658,17 @@ avonet_beaks <- avonet %>%
 ls()
 ```
 
+
+```{r lasso_real,include=FALSE}
+avonet_beaks <- avonet %>%
+  mutate(Beak.Length_Culmen_tr = scale(log(Beak.Length_Culmen + 1))[ , 1],
+         Beak.Length_Nares_tr = scale(log(Beak.Length_Nares + 1))[ , 1],
+         Beak.Width_tr = scale(log(Beak.Width + 1))[ , 1],
+         Beak.Depth_tr = scale(log(Beak.Depth + 1))[ , 1]) %>%
+  dplyr::select(label, phlo, Beak.Length_Culmen_tr:Beak.Depth_tr)
+
+```
+
 ## Run the model
 
 ```{r lasso2, exercise=TRUE}
@@ -718,25 +682,24 @@ mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr +
 ls()
 ```
 
-## What does that model look like?
-
-```{r lasso_pred, exercise=TRUE}
-preds <- avonet_beaks %>% bind_cols(predict(mod_mult, avonet_beaks))
-#autoplot(preds, .pred_Beak.Length_Culmen_tr)
+```{r lasso2_real,include=FALSE}
+mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo), family = "mgaussian",
+                  data = avonet_beaks,
+                  engine = "glmnet",
+                  engine_options = list(trace.it = TRUE))
 ```
 
-```{r lasso_pred-check}
-ls()
+## What does that model look like?
+
+```{r lasso_pred}
+preds <- avonet_beaks %>% bind_cols(predict(mod_mult, avonet_beaks))
+autoplot(preds, .pred_Beak.Length_Culmen_tr)
 ```
 
 ## Sensible predictions?
 
-```{r lasso_pred2, exercise=TRUE}
+```{r lasso_pred2, echo=FALSE}
 ggplot(preds, aes(Beak.Length_Culmen_tr, .pred_Beak.Length_Culmen_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Length_Nares_tr, .pred_Beak.Length_Nares_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Width_tr, .pred_Beak.Width_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + ggplot(preds, aes(Beak.Depth_tr, .pred_Beak.Depth_tr)) + geom_point() + geom_abline(intercept = 0, slope = 1) + plot_layout(ncol = 2) & theme_minimal()
-```
-
-```{r lasso_pred2-check}
-ls()
 ```
 
 ## Related work
@@ -751,7 +714,7 @@ Bastide, P., Ané, C., Robin, S. and Mariadassou, M. (2018), Inference of Adapti
 
 - We have a set of multivariate vectors describing evolutionary directions in trait space.
 
-```{r rates, exercise=TRUE}
+```{r rates}
 rates <- mod_mult$random[[1]] %>%
   pivot_wider(names_from = "y", values_from = "coef") %>%
   filter(Beak.Length_Culmen_tr != 0) %>%
@@ -760,25 +723,19 @@ rates <- mod_mult$random[[1]] %>%
   mutate(across(-parameter, ~ .x / norm))
 ```
 
-```{r rates-check}
-ls()
-```
-
 ---
 
-```{r rates2, exercise=TRUE}
+- Plot normalised vectors:
+
+```{r rates2}
 ggpairs(as.data.frame(rates %>% select(-parameter, -norm)),
         upper = list(continuous = "density", combo = "box_no_facet", discrete = "count", na = "na"),) +
   theme_minimal()
 ```
 
-```{r rates2-check}
-ls()
-```
-
 ## Relationship with Diversification?
 
-- Eyeballing caertianly looks like something is happening:
+- Eyeballing certianly looks like something is happening:
 
 
 ## Attempt at testing the relationship
@@ -786,97 +743,6 @@ ls()
 ![](images/fibre_presentation_insertimage_4.png)
 
 - I think I can do better than this, but the result is intriguing!
-
-## Incorporating correlations
-### Phylogenetic 'factor analysis'
-
-- If we really want to include correlations among traits, use 'latent traits'.
-- We can fit such a model with `{fibre}`, which uses `{INLA}` 
-- Response trait variables are modeled as a linear function of latent variables (with the error term omitted for brevity):
-
-$$\text{trait}_{i,j} = \text{root}_j + \sum_k\beta_{j, k}\mu_{i, k}$$
-$$\mu_{i, k} \sim \text{Pflow}\left(\phi_k^2\right)$$
-where $j$ is refers to the $j$th trait dimension, and $k$ refers to the $k$th latent trait dimension. 
-
----
-
-Essentially this is dimension reduction, but where the latent space is constrained to be consistent with a model of evolutionary change on a phylogeny. The code for that model would look like this:
-
-```{r multivariate, eval=FALSE}
-mod_mult <- fibre(Beak.Length_Culmen_tr + Beak.Length_Nares_tr + Beak.Width_tr + Beak.Depth_tr ~ bre_brownian(phlo, latent = 2), 
-                  data = avonet_beaks,
-                  engine_options = list(verbose = TRUE))
-```
-
-```{r multivariate-check}
-ls()
-```
-
----
-
-This model is not fully implemented, but should be available as a new feature in the package shortly.
-
-
-## Let's try a few interesting variations on the basic model
-### A tale of two phylogenies
-
-- We can model traits that are characteristic of pairs of species, instead of single species.
-- If these species pairs are from separate clades (e.g. a bipartite network), then we can model the trait as an interaction between 'latent' traits evolving on two phylogenies.
-
-The model is:
-
-$$\text{trait}_{i,j} = \mu_i + \mu_j + \mu_{i}^\text{int} \mu_{j}^\text{int}$$
-$$\mu_i \sim \text{Pflow}_i\left(\phi_i^2\right); \mu_j \sim \text{Pflow}_j\left(\phi_j^2\right)$$
-$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
-
----
-
-- It turns out that if:
-
-$$\mu_i^\text{int} \sim \text{Pflow}_i\left(\phi_\text{int}^2\right); \mu_j^\text{int} \sim \text{Pflow}_j\left(\phi_\text{int}^2\right)$$
-
-then:
-
-$$\mu_\text{int} = \mu_{i}^\text{int} \mu_{j}^\text{int} \sim \text{Pflow}_\text{i}\otimes\text{Pflow}_\text{j}\left(\phi_\text{int}^2\right)$$
-- which means that the interaction can be modeled with a single parameter that is distributed according to a phylogenetic flow model that is the Kronecker product of the two interacting phylogenetic flows.
-
-## A Tale of Two Phylogenies
-
-- This model is equivalent to the models independently published by Hadfield et al. and Ives et al. in 2008.
-- However, like the single phylogeny models, the `{fibre}` model estimates 'rates' for the interaction, which in this case gives a measure of what combinations of nodes in the two phylogenies contribute the most to an interaction.
-
-```{r interaction2, exercise=TRUE}
-mod_int <- fibre(EFFECTSIZE1 ~ bre_brownian(plant_phlo) + bre_brownian(fungus_phlo) + 
-                   bre_brownian(plant_phlo * fungus_phlo) +
-                   re(PlantSpecies2018) +
-                   re(FungalGenus2018) +
-                   bre_brownian(fungus_phlo * pf_as_pfc(PlantSpecies2018)) +
-                   bre_brownian(plant_phlo * pf_as_pfc(FungalGenus2018)),
-                 data = plant_fungus %>%
-                   filter(plant_is_tip & fungus_is_tip),
-                 engine_options = list(verbose = TRUE))
-
-mod_int
-```
-
-```{r interaction2-check}
-ls()
-```
-
-### A tale of two phylogenies
-
-- Because of the large number of effects, this model also takes a little while (~ approx 30 minutes on my laptop)
-
-```{r interaction3, exercise=TRUE}
-mod_int <- readr::read_rds("extdata/mod_int.rds")
-
-mod_int
-```
-
-```{r interaction3-check}
-ls()
-```
-
 
 ## Truly complex high-dimensional data
 ### Time to bring in deep learning!
@@ -965,14 +831,10 @@ knitr::include_graphics("images/Autodecoding_evolution_slides/beak_evolve.gif")
 
 - Both the trained model and the estimated latent codes for 2,020 birds
 
-```{r latent_birds, exercise=TRUE}
+```{r latent_birds}
 bird_beak_codes
 beak_mod <- load_model("bird_beaks")
 beak_mod
-```
-
-```{r latent_birds-check}
-ls()
 ```
 
 ## Choose a random bird
@@ -984,10 +846,9 @@ knitr::include_graphics("images/fibre_presentation_insertimage_6.png")
 
 ```
 
-
 ## Make a mesh from the model
 
-```{r latent_birds2, exercise=TRUE}
+```{r latent_birds2}
 latent <- bird_beak_codes %>%
   dplyr::filter(label == "Rhodothraupis_celaeno") %>%
   dplyr::select(dplyr::starts_with("latent_")) %>%
@@ -996,19 +857,11 @@ latent <- bird_beak_codes %>%
 latent
 ```
 
-```{r latent_birds2-check}
-ls()
-```
-
 ## Make a mesh from the model
 
-```{r latent_birds3, exercise=TRUE}
+```{r latent_birds3}
 mesh <- beak_mod$get_mesh(latent)
 shade3d(mesh, col = "gold")
-```
-
-```{r latent_birds3-check}
-ls()
 ```
 
 ## A new type of Species Distribution Model

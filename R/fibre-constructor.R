@@ -1,10 +1,11 @@
-new_fibre <- function(fixed, random, hyper, model, saved_predictions, engine, blueprint) {
+new_fibre <- function(fixed, random, hyper, model, saved_predictions, engine, extras, blueprint) {
   ob <- hardhat::new_model(fixed = fixed,
                      random = random,
                      hyper = hyper,
                      model = model,
                      saved_predictions = saved_predictions,
                      engine = engine,
+                     extras = extras,
                      blueprint = blueprint, 
                      class = "fibre")
 }

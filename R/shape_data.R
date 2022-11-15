@@ -351,7 +351,8 @@ fibre_process_fit_inla <- function(fit, blueprint,
                                    pfcs,
                                    rate_dists,
                                    labels,
-                                   engine) {
+                                   engine,
+                                   dat_list) {
   
   renamer <- fit$renamer
   renames <- renamer$new_names
@@ -436,7 +437,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
                      .name_repair = ~ vctrs::vec_as_names(..., 
                                                           repair = "unique", 
                                                           quiet = TRUE)) %>%
-    tidyr::unite(.data$label, dplyr::everything()) %>%
+    tidyr::unite(label, dplyr::everything()) %>%
     dplyr::bind_cols(fit$summary.fitted.values[seq_along(pfcs[[1]]), c(1:3, 5)] %>%
                        dplyr::rename_with(function(x) paste0(".pred_", x)))
   
@@ -447,6 +448,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
     model = fit,
     saved_predictions = preds,
     engine = engine,
+    extras = list(data = dat_list),
     blueprint = blueprint
   )
 }
@@ -473,8 +475,9 @@ shape_data_glmnet <- function(pfcs,
     } else {
       expo <- 1
     }
-    x <- phyf::pf_as_sparse(pfcs[[1]]^expo)
-    pfact <- phyf::pf_mean_edge_features(pfcs[[1]])
+    pfcs_expo <- pfcs[[1]]^expo
+    x <- phyf::pf_as_sparse(pfcs_expo)
+    pfact <- phyf::pf_mean_edge_features(pfcs_expo)
     colnames(x) <- paste0("pfc_", colnames(x))
     
   } else {
@@ -486,7 +489,7 @@ shape_data_glmnet <- function(pfcs,
                          colnames(x) <- paste("pfc", colnames(x), .y, sep = "_");
                          x})
     x <- do.call(cbind, mats)
-    pfact <- do.call(c, purrr::map(pfcs,
+    pfact <- do.call(c, purrr::map(pfcs_expo,
                         ~ phyf::pf_mean_edge_features(.x)))
         
   }
@@ -510,19 +513,23 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
   
   fit <- fit$fit
   
-  metrics <- glmnet_metrics(fit, dat_list$dat, dat_list$y, penalty.factor = dat_list$penalty_factor)
+  metrics <- glmnet_metrics(fit, dat_list$dat, dat_list$y, penalty.factor = dat_list$penalty_factor, 
+                            alpha = alpha)
   
-  if(alpha > 0) {
-    best_mod <- which.min(metrics$bic_l)
-    best_lam <- fit$lambda[best_mod]
-  } else {
-    best_mod <- which.min(metrics$loocv)
-    best_lam <- fit$lambda[best_mod]
-  }
+  best_mod <- which.min(metrics$bic_l)
+  best_lam <- fit$lambda[best_mod]
+  
+  # if(alpha > 0) {
+  #   best_mod <- which.min(metrics$bic_l)
+  #   best_lam <- fit$lambda[best_mod]
+  # } else {
+  #   best_mod <- which.min(metrics$loocv)
+  #   best_lam <- fit$lambda[best_mod]
+  # }
   
   new_fit <- fibre_process_fit_glmnet_lambda(fit, best_lam, best_mod, blueprint,
                                              to_predict, labels, metrics, engine,
-                                             rate_dists)
+                                             rate_dists, dat_list)
   
   return(new_fit)
   
@@ -531,7 +538,7 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
 
 fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                                             to_predict, labels, metrics, engine,
-                                            rate_dists) {
+                                            rate_dists, dat_list) {
   
   
   coefs <- coef(fit, s = lambda)
@@ -573,7 +580,7 @@ fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                      .name_repair = ~ vctrs::vec_as_names(..., 
                                                           repair = "unique", 
                                                           quiet = TRUE)) %>%
-    tidyr::unite(.data$label, dplyr::everything()) %>%
+    tidyr::unite(label, dplyr::everything()) %>%
     dplyr::bind_cols(pred)
   
   new_fibre(
@@ -583,6 +590,7 @@ fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
     model = fit,
     saved_predictions = preds,
     engine = engine,
+    extras = list(metrics = metrics, data = dat_list),
     blueprint = blueprint
   )
 }
