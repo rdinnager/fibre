@@ -70,3 +70,4 @@ Depends:
 Remotes: 
     rdinnager/phyf
 URL: https://rdinnager.github.io/fibre/
+Additional_repositories: https://inla.r-inla-download.org/R/stable

@@ -120,6 +120,8 @@ Run 2D Macarthur-Levins competition model with evolution
 
 ## Introducing `{fibre}`
 
+![](images/fibre_logo.png)
+
 - `{fibre}` is a phonetic respelling of the acronym PhyBR: *Phy*logenetic *B*ranch *R*egression
 - `{fibre}` implements fast and flexible evolutionary models of traits on phylogenies
 - Both for inference of rates of evolution of traits and for phylogenetic comparative methods
@@ -897,9 +899,11 @@ knitr::include_graphics("images/Autodecoding_evolution_slides/lizard range.gif")
 - In order to integrate simulation smoothly with data analysis, having a standalone software for simulation is not ideal
 - With that in mind, my collaborators and I created `{slimr}`, an R package to integrate SLiM simulations with standard R workflows
 
+![](images/slimr_logo.png)
+
 ## Collaborators
 
-- I did this as part of a Postdoc with the I University of Canberra in Australia
+- I did this as part of a Postdoc with the the University of Canberra in Australia
 
 ```{r logo, out.width=150, echo=FALSE}
 knitr::include_graphics("images/fibre_presentation_insertimage_5.png")
