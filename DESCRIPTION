@@ -33,7 +33,8 @@ Suggests:
     learnr,
     roxygen2,
     rgl,
-    patchwork
+    patchwork,
+    rmarchingcubes
 VignetteBuilder: knitr
 Imports: 
     ape,
