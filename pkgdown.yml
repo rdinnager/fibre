@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   fibre: fibre.html
   high_dim_phylo_models: high_dim_phylo_models.html
-last_built: 2022-11-16T03:52Z
+last_built: 2022-11-16T23:06Z
 urls:
   reference: https://rdinnager.github.io/fibre/reference
   article: https://rdinnager.github.io/fibre/articles
