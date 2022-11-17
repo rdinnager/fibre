@@ -476,20 +476,20 @@ shape_data_glmnet <- function(pfcs,
       expo <- 1
     }
     pfcs_expo <- pfcs[[1]]^expo
-    x <- phyf::pf_as_sparse(pfcs[[1]])
-    pfact <- phyf::pf_mean_edge_features(pfcs_expo)
+    x <- phyf::pf_as_sparse(pfcs_expo)
+    pfact <- phyf::pf_mean_edge_features(pfcs[[1]])
     colnames(x) <- paste0("pfc_", colnames(x))
     
   } else {
     
     expo <- ifelse(unlist(rate_dists) == "Brownian", 2, 1)
     pfcs_expo <- purrr::map2(pfcs, expo, ~ .x^.y)
-    mats <- purrr::imap(pfcs,
+    mats <- purrr::imap(pfcs_expo,
                        ~ {x <- phyf::pf_as_sparse(.x) ;
                          colnames(x) <- paste("pfc", colnames(x), .y, sep = "_");
                          x})
     x <- do.call(cbind, mats)
-    pfact <- do.call(c, purrr::map(pfcs_expo,
+    pfact <- do.call(c, purrr::map(pfcs,
                         ~ phyf::pf_mean_edge_features(.x)))
         
   }
