@@ -476,7 +476,7 @@ shape_data_glmnet <- function(pfcs,
       expo <- 1
     }
     pfcs_expo <- pfcs[[1]]^expo
-    x <- phyf::pf_as_sparse(pfcs)
+    x <- phyf::pf_as_sparse(pfcs[[1]])
     pfact <- phyf::pf_mean_edge_features(pfcs_expo[[1]])
     colnames(x) <- paste0("pfc_", colnames(x))
     
