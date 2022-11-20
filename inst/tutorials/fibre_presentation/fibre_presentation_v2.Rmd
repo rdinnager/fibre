@@ -500,7 +500,9 @@ ls()
 ```{r, context="data"}
 avonet_w_preds <- avonet %>% bind_cols(preds) %>%
   mutate(.obs = scale(log(Mass + 1)))
+
 autoplot(avonet_w_preds, .pred_mean)
+
 ```
 
 ## Show a subtree
