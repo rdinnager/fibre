@@ -1,10 +1,22 @@
 shape_data_inla <- function(pfcs, predictors,
                             outcomes, latents) {
   
-  # return(list(pfcs = pfcs, predictors = predictors,
-  #             outcomes = outcomes, latents = latents))
-  
   ny <- ncol(outcomes)
+  
+  new_y <- tidyr::pivot_longer(outcomes,
+                               dplyr::everything())
+  
+  n_reps <- purrr::map(latents, 
+                       ~ min(.x, ny))
+  n_reps[n_reps == 0] <- ny
+  
+  new_pfcs <- purrr::map2(pfcs, n_reps,
+                          ~ phyf::pf_kronecker(.x,
+                                               Matrix::.sparseDiagonal(.y)))
+  
+  return(list(new_pfcs = new_pfcs, predictors = predictors,
+              outcomes = outcomes, n_reps = n_reps))
+  
   ylen <- nrow(outcomes)
   
   latent_df <- purrr::map(seq_along(pfcs), #pfcs, latents,

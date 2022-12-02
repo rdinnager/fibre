@@ -1,3 +1,11 @@
+
+
+mod <- fibre(latent_code_1 + latent_code_2 +
+               latent_code_3 ~ bre_brownian(phlo) + X,
+             data = bird_beak_codes)
+
+
+
 data.same.len <- INLA::inla.stack.data(mod[[1]])
 data.same.len$scale.log.Mass...1.. <- rep(Inf, length(data.same.len[[2]]))
 names(data.same.len)[1] <- "y..fake"

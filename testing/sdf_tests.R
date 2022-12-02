@@ -3,6 +3,35 @@ library(fibre)
 library(torch)
 data(bird_beak_codes)
 
+sdfnet <- load_bird_beak_model()
+
+latent <- bird_beak_codes %>%
+  dplyr::select(dplyr::starts_with("latent_")) %>%
+  dplyr::slice(1500) %>%
+  unlist() %>%
+  matrix(nrow = 1) %>%
+  torch_tensor(requires_grad = TRUE)
+
+test <- sdfnet$render_image(latent_code = latent,
+                            camera_position = get_camera_position(-2, 90, 179), 
+                            iterations = 1000,
+                            ssaa = 1,
+                            threshold = 0.0005)
+
+mesh <- sdfnet$get_mesh(latent, resolution = 400)
+rgl::shade3d(mesh, col = "red")
+
+for(i in 1:180) {
+  im <- try(sdfnet$render_image(latent_code = latent,
+                            camera_position = get_camera_position(-2, i * 2, 179), 
+                            iterations = 1000,
+                            ssaa = 1))
+  if(inherits(im, "try-error")) {
+    message("Error on image ", i)
+  }
+  imager::save.image(im, file.path("testing/images", paste0("test_", i, ".png")))
+}
+
 sd1 <- load_state_dict(system.file("models/sdf_net.pt", package = "fibre"))
 sdfnet <- sdf_net()
 sdfnet$load_state_dict(sd1)

@@ -193,6 +193,8 @@ fibre_impl <- function(predictors, outcomes,
                                                 outcomes,
                                                 rate_dists))
   
+  return(dat_list)
+  
   form <- switch(engine, 
                  inla = make_inla_formula(dat_list$dat, dat_list$y),
                  glmnet = NULL)
