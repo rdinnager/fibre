@@ -48,7 +48,8 @@ sdf_net <- torch::nn_module("sdf_net",
                               x <- self$layers1(input)
                               x <- torch::torch_cat(list(x, input), dim = 2L)
                               x <- self$layers2(x)
-                              return(x$squeeze())
+                              
+                              return(x$squeeze(2L))
                             },
                             
                             get_normals = function(points, latent_code = NULL) {
@@ -65,6 +66,10 @@ sdf_net <- torch::nn_module("sdf_net",
                                 #latent_code$requires_grad <- TRUE
                                 sdf <- self$forward(points, latent_code)
                               }
+                              
+                              ## needed to clear GPU memory to prevent freezing up
+                              ## after a few iterations but adds fair bit of overhead
+                              gc()
                             
                               normals <- torch::autograd_grad(sdf, points,
                                                               torch::torch_ones_like(sdf))
@@ -165,9 +170,11 @@ sdf_net <- torch::nn_module("sdf_net",
                                                     ssaa = 2, 
                                                     radius = 1.0, 
                                                     crop = FALSE, 
-                                                    color = c(R = 242 / 255, G = 174 / 255, B = 177 / 255), 
-                                                    vertical_cutoff = NULL, 
-                                                    plot = TRUE) {
+                                                    color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255), 
+                                                    max_ray_move = 0.05,
+                                                    plot = TRUE,
+                                                    cuda = FALSE,
+                                                    batch_size = 50000) {
                               
                               render_image(self, latent_code = latent_code,
                                              resolution = resolution,
@@ -179,9 +186,12 @@ sdf_net <- torch::nn_module("sdf_net",
                                              ssaa = ssaa,
                                              radius = radius,
                                              crop = crop,
-                                             color = color,                                           
+                                             color = color,       
+                                             max_ray_move = max_ray_move,
                                              vertical_cutoff = vertical_cutoff,
-                                             plot = plot)  
+                                             plot = plot,
+                                             cuda = cuda,
+                                             batch_size = batch_size)  
                               
                             },
 
