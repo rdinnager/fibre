@@ -48,7 +48,8 @@ sdf_net <- torch::nn_module("sdf_net",
                               x <- self$layers1(input)
                               x <- torch::torch_cat(list(x, input), dim = 2L)
                               x <- self$layers2(x)
-                              return(x$squeeze())
+
+                              return(x$squeeze(2L))
                             },
 
                             get_normals = function(points, latent_code = NULL) {
@@ -171,28 +172,27 @@ sdf_net <- torch::nn_module("sdf_net",
                                                     radius = 1.0,
                                                     crop = FALSE,
                                                     color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255),
-                                                    vertical_cutoff = NULL,
                                                     max_ray_move = 0.05,
                                                     plot = TRUE,
                                                     cuda = FALSE,
                                                     batch_size = 50000) {
 
-                              render_image(self, latent_code = latent_code,
-                                             resolution = resolution,
-                                             camera_position = camera_position,
-                                             light_position = light_position,
-                                             threshold = threshold,
-                                             sdf_offset = sdf_offset,
-                                             iterations = iterations,
-                                             ssaa = ssaa,
-                                             radius = radius,
-                                             crop = crop,
-                                             color = color,
-                                             vertical_cutoff = vertical_cutoff,
-                                             max_ray_move = max_ray_move,
-                                             plot = plot,
-                                             cuda = cuda,
-                                             batch_size = batch_size)
+                                                            render_image(self, latent_code = latent_code,
+                                                                         resolution = resolution,
+                                                                         camera_position = camera_position,
+                                                                         light_position = light_position,
+                                                                         threshold = threshold,
+                                                                         sdf_offset = sdf_offset,
+                                                                         iterations = iterations,
+                                                                         ssaa = ssaa,
+                                                                         radius = radius,
+                                                                         crop = crop,
+                                                                         color = color,
+                                                                         vertical_cutoff = vertical_cutoff,
+                                                                         max_ray_move = max_ray_move,
+                                                                         plot = plot,
+                                                                         cuda = cuda,
+                                                                         batch_size = batch_size)
 
                             },
 

@@ -26,7 +26,7 @@ test <- sdfnet$render_image(latent_code = latent,
 mesh <- sdfnet$get_mesh(latent, resolution = 400)
 rgl::shade3d(mesh, col = "red")
 
-for(i in 1:180) {
+for(i in 47:180) {
   im <- try(sdfnet$render_image(latent_code = latent,
                             camera_position = get_camera_position(-2, i * 2, 179),
                             iterations = 1000,
