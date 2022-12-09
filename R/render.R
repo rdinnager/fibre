@@ -41,18 +41,21 @@ get_camera_transform <- function(camera_distance, rotation_y, rotation_x = 0, pr
   return(camera_transform)
 }
 
+#' @export
 get_camera_position <- function(camera_distance, rotation_y, rotation_x = 0, project = FALSE) {
   camera_transform <- get_camera_transform(camera_distance, rotation_y, rotation_x, project)
   camera_position <- (solve(camera_transform) %*% matrix(c(0, 0, 0, 1), ncol = 1))[1:3, ]
   camera_position
 }
 
+#' @export
 default_camera <- function() {
   camera_transform <- get_camera_transform(2.2, 147, 20)
   camera_position <- (solve(camera_transform) %*% matrix(c(0, 0, 0, 1), ncol = 1))[1:3, ]
   camera_position
 }
 
+#' @export
 default_light <- function() {
   light_matrix <- get_camera_transform(6, 164, 50)
   light_position <- (solve(light_matrix) %*% matrix(c(0, 0, 0, 1), ncol = 1))[1:3, ]
@@ -99,12 +102,12 @@ get_shadows <- function(sdf_net, points, light_position, latent_code = NULL, thr
 
 }
 
-render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_position, light_position, threshold = 0.0005, sdf_offset = 0, iterations = 1000, ssaa = 2, radius = 1.0, crop = FALSE, color = c(R = 246 / 255, G = 236 / 255, B = 133 / 255), vertical_cutoff = NULL, max_ray_move = 0.05, plot = TRUE, cuda = FALSE, batch_size = 50000) {
+render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_position, light_position, threshold = 0.0005, sdf_offset = 0, iterations = 1000, ssaa = 2, radius = 1.0, crop = FALSE, color = c(R = 246 / 255, G = 236 / 255, B = 133 / 255), vertical_cutoff = NULL, max_ray_move = 0.05, plot = TRUE, cuda = FALSE, batch_size = 50000, verbose = FALSE) {
 
   rlang::check_installed("Morpho")
   rlang::check_installed("einsum")
   rlang::check_installed("imager")
-  message("started")
+  if(verbose) message("started")
 
   camera_forward <- camera_position / norm_vec(camera_position) * -1
 
@@ -149,6 +152,7 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   #model_mask <- torch::torch_zeros(points$shape[1], dtype = torch::torch_uint8())
   model_mask <- integer(nrow(points))
 
+  if(verbose) message("starting raymarching")
   for(i in seq_len(iterations)) {
     test_points <- torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32())
     # if(latent_code$shape[1] == 1) {
@@ -174,7 +178,7 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
     }
     #print(range(sdf))
   }
-  message("done raymarching")
+  if(verbose) message("done raymarching")
   model_mask[indices] <- 1
 
   # test <- cbind(screenspace_points, model_mask) %>% as.data.frame()
@@ -188,12 +192,11 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   # if(latent_code$shape[1] == 1) {
   #     latent_code <- latent_code$`repeat`(c(points$shape[1], 1L))
   # }
-  message("starting normals")
-  print(latent_code$requires_grad)
+  if(verbose) message("starting normals")
   t_points <- torch::torch_tensor(points[model_mask == 1, , drop = FALSE], dtype = torch::torch_float32())
   normal = sdf_net$get_normals_in_batches(t_points, latent_code, cuda = cuda, batch_size = batch_size) %>%
     as.matrix()
-  message("done normals")
+  if(verbose) message("done normals")
 
   model_mask <- model_mask == 1
   model_points <- points[model_mask, ]
@@ -201,8 +204,9 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   # if(latent_code$shape[1] == 1) {
   #   latent_code <- latent_code$`repeat`(c(model_points$shape[1], 1L))
   # }
+  if(verbose) message("starting shadows")
   seen_by_light = 1.0 - get_shadows(sdf_net, model_points, light_position, latent_code, radius = radius, sdf_offset = sdf_offset, cuda = cuda, batch_size = batch_size)
-  message("done shadows")
+  if(verbose) message("done shadows")
 
   light_direction <- t(t(-model_points) + light_position)
   light_direction <- light_direction / apply(light_direction, 1, norm_vec)

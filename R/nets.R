@@ -52,6 +52,18 @@ sdf_net <- torch::nn_module("sdf_net",
                               return(x$squeeze(2L))
                             },
 
+                            get_activations = function(points, latent_codes) {
+                              if(latent_codes$shape[1] == 1) {
+                                latent_codes <- latent_codes$`repeat`(c(points$shape[1], 1L))
+                              }
+                              input <- torch::torch_cat(list(points, latent_codes), dim = 2L)
+                              x <- self$layers1(input)
+                              x <- torch::torch_cat(list(x, input), dim = 2L)
+                              x <- self$layers2(x)
+
+                              return(x$squeeze(2L))
+                            },
+
                             get_normals = function(points, latent_code = NULL) {
                               # if(latent_code$requires_grad | points$requires_grad) {
                               #   stop('get_normals may only be called with tensors that don\'t require grad.')
@@ -172,10 +184,12 @@ sdf_net <- torch::nn_module("sdf_net",
                                                     radius = 1.0,
                                                     crop = FALSE,
                                                     color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255),
+                                                    vertical_cutoff = NULL,
                                                     max_ray_move = 0.05,
                                                     plot = TRUE,
                                                     cuda = FALSE,
-                                                    batch_size = 50000) {
+                                                    batch_size = 50000,
+                                                    verbose = FALSE) {
 
                                                             render_image(self, latent_code = latent_code,
                                                                          resolution = resolution,
@@ -192,7 +206,8 @@ sdf_net <- torch::nn_module("sdf_net",
                                                                          max_ray_move = max_ray_move,
                                                                          plot = plot,
                                                                          cuda = cuda,
-                                                                         batch_size = batch_size)
+                                                                         batch_size = batch_size,
+                                                                         verbose = verbose)
 
                             },
 
