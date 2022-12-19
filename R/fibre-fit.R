@@ -62,7 +62,7 @@ fibre.default <- function(x, ...) {
 #' @rdname fibre
 fibre.data.frame <- function(x, y, 
                              intercept = TRUE, 
-                             engine = c("inla", "glmnet", "mgcv"),
+                             engine = c("inla", "glmnet", "torch"),
                              engine_options = list(),
                              ...) {
   engine <- match.arg(engine)
@@ -76,7 +76,7 @@ fibre.data.frame <- function(x, y,
 #' @rdname fibre
 fibre.matrix <- function(x, y, 
                          intercept = TRUE,
-                         engine = c("inla", "glmnet", "mgcv"),
+                         engine = c("inla", "glmnet", "torch"),
                          engine_options = list(),
                          ...) {
   engine <- match.arg(engine)
@@ -91,7 +91,7 @@ fibre.matrix <- function(x, y,
 fibre.formula <- function(formula, data, 
                           intercept = TRUE,
                           family = "gaussian",
-                          engine = c("inla", "glmnet", "mgcv"),
+                          engine = c("inla", "glmnet", "torch"),
                           engine_options = list(),
                           ...) {
   engine <- match.arg(engine)
@@ -113,7 +113,7 @@ fibre.formula <- function(formula, data,
 #' @rdname fibre
 fibre.recipe <- function(x, data, 
                          intercept = TRUE, 
-                         engine = c("inla", "glmnet", "mgcv"),
+                         engine = c("inla", "glmnet", "torch"),
                          engine_options = list(),
                          ...) {
   engine <- match.arg(engine)
@@ -170,7 +170,11 @@ fibre_impl <- function(predictors, outcomes,
                        blueprint) {
   
   if(engine == "glmnet" && sum(unlist(latents)) > 0) {
-    rlang::abort('engine = "glmnet" does not support argument latent > 0')
+    rlang::abort('engine = "glmnet" does not support argument latent > 0, try engine = "torch"')
+  }
+  
+  if(engine == "inla" && sum(unlist(latents)) > 0) {
+    rlang::abort('engine = "inla" does not support argument latent > 0, try engine = "torch"')
   }
   
   if(engine == "glmnet") {
@@ -193,7 +197,7 @@ fibre_impl <- function(predictors, outcomes,
                                                 outcomes,
                                                 rate_dists))
   
-  return(dat_list)
+  #return(dat_list)
   
   form <- switch(engine, 
                  inla = make_inla_formula(dat_list$dat, dat_list$y),

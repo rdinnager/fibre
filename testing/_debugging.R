@@ -1,9 +1,20 @@
-
-
+library(phyf)
+library(tidyverse)
+data(bird_beak_codes)
 mod <- fibre(latent_code_1 + latent_code_2 +
                latent_code_3 ~ bre_brownian(phlo) + X,
              data = bird_beak_codes)
 
+x <- mod$dat
+A <- mod$A
+ys_all <- mod$y
+
+y <- bird_beak_codes %>%
+  select(starts_with("latent_")) %>%
+  as.matrix()
+
+mod <- fibre(y ~ bre_brownian(phlo) + X,
+             data = bird_beak_codes %>% mutate(y = y))
 
 
 data.same.len <- INLA::inla.stack.data(mod[[1]])
