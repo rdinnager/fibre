@@ -48,10 +48,22 @@ sdf_net <- torch::nn_module("sdf_net",
                               x <- self$layers1(input)
                               x <- torch::torch_cat(list(x, input), dim = 2L)
                               x <- self$layers2(x)
-                              
+
                               return(x$squeeze(2L))
                             },
-                            
+
+                            get_activations = function(points, latent_codes) {
+                              if(latent_codes$shape[1] == 1) {
+                                latent_codes <- latent_codes$`repeat`(c(points$shape[1], 1L))
+                              }
+                              input <- torch::torch_cat(list(points, latent_codes), dim = 2L)
+                              x <- self$layers1(input)
+                              x <- torch::torch_cat(list(x, input), dim = 2L)
+                              x <- self$layers2(x)
+
+                              return(x$squeeze(2L))
+                            },
+
                             get_normals = function(points, latent_code = NULL) {
                               # if(latent_code$requires_grad | points$requires_grad) {
                               #   stop('get_normals may only be called with tensors that don\'t require grad.')
@@ -66,20 +78,21 @@ sdf_net <- torch::nn_module("sdf_net",
                                 #latent_code$requires_grad <- TRUE
                                 sdf <- self$forward(points, latent_code)
                               }
-                              
-                              ## needed to clear GPU memory to prevent freezing up
-                              ## after a few iterations but adds fair bit of overhead
+
+                              ## needed to get torch to release GPU memory
+                              ## this code hangs after a few iterations otherwise
+                              ## but adds a lot of overhead
                               gc()
-                            
+
                               normals <- torch::autograd_grad(sdf, points,
                                                               torch::torch_ones_like(sdf))
                               normals <- normals[[1]] / torch::torch_norm(normals[[1]], dim = 2L, keepdim = TRUE)
                               return(normals)
-                            
+
                             },
-                            
-                            get_normals_in_batches = function(points, latent_code = NULL, 
-                                                              batch_size = 10000, 
+
+                            get_normals_in_batches = function(points, latent_code = NULL,
+                                                              batch_size = 10000,
                                                               return_cpu = TRUE,
                                                               cuda = FALSE) {
                               if(is.null(latent_code)) {
@@ -109,11 +122,11 @@ sdf_net <- torch::nn_module("sdf_net",
                                   }
                                 }
                               }
-                            
+
                               res
                             },
-                            
-                            evaluate_in_batches = function(points, latent_code = NULL, 
+
+                            evaluate_in_batches = function(points, latent_code = NULL,
                                                            batch_size = 10000, return_cpu = TRUE,
                                                            cuda = FALSE) {
 
@@ -156,43 +169,46 @@ sdf_net <- torch::nn_module("sdf_net",
                                   }
                                 }
                               }
-                            
+
                               res
                             },
-                            
-                            render_image = function(latent_code = NULL, 
-                                                    resolution = 800, 
-                                                    camera_position = default_camera(), 
-                                                    light_position = default_light(), 
-                                                    threshold = 0.0005, 
-                                                    sdf_offset = 0, 
-                                                    iterations = 1000, 
-                                                    ssaa = 2, 
-                                                    radius = 1.0, 
-                                                    crop = FALSE, 
-                                                    color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255), 
+
+                            render_image = function(latent_code = NULL,
+                                                    resolution = 800,
+                                                    camera_position = default_camera(),
+                                                    light_position = default_light(),
+                                                    threshold = 0.0005,
+                                                    sdf_offset = 0,
+                                                    iterations = 1000,
+                                                    ssaa = 2,
+                                                    radius = 1.0,
+                                                    crop = FALSE,
+                                                    color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255),
+                                                    vertical_cutoff = NULL,
                                                     max_ray_move = 0.05,
                                                     plot = TRUE,
                                                     cuda = FALSE,
-                                                    batch_size = 50000) {
-                              
-                              render_image(self, latent_code = latent_code,
-                                             resolution = resolution,
-                                             camera_position = camera_position,
-                                             light_position = light_position,
-                                             threshold = threshold,
-                                             sdf_offset = sdf_offset,
-                                             iterations = iterations,
-                                             ssaa = ssaa,
-                                             radius = radius,
-                                             crop = crop,
-                                             color = color,       
-                                             max_ray_move = max_ray_move,
-                                             vertical_cutoff = vertical_cutoff,
-                                             plot = plot,
-                                             cuda = cuda,
-                                             batch_size = batch_size)  
-                              
+                                                    batch_size = 50000,
+                                                    verbose = FALSE) {
+
+                                                            render_image(self, latent_code = latent_code,
+                                                                         resolution = resolution,
+                                                                         camera_position = camera_position,
+                                                                         light_position = light_position,
+                                                                         threshold = threshold,
+                                                                         sdf_offset = sdf_offset,
+                                                                         iterations = iterations,
+                                                                         ssaa = ssaa,
+                                                                         radius = radius,
+                                                                         crop = crop,
+                                                                         color = color,
+                                                                         vertical_cutoff = vertical_cutoff,
+                                                                         max_ray_move = max_ray_move,
+                                                                         plot = plot,
+                                                                         cuda = cuda,
+                                                                         batch_size = batch_size,
+                                                                         verbose = verbose)
+
                             },
 
                             get_voxels = function(latent_code,
@@ -227,7 +243,7 @@ sdf_net <- torch::nn_module("sdf_net",
 
                             get_mesh = function(latent_code, resolution = 100,
                                                 smooth = FALSE) {
-                              
+
                               rlang::check_installed("rmarchingcubes")
                               rlang::check_installed("rgl")
 

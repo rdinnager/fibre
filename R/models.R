@@ -10,13 +10,14 @@
 #' model <- load_model("bird_beaks")
 #' }
 load_model <- function(name) {
-  
+
   switch(name,
          bird_beaks = load_bird_beak_model())
-  
-  
+
+
 }
 
+#' @export
 load_bird_beak_model <- function() {
   sd1 <- torch::load_state_dict(system.file("models/sdf_net.pt", package = "fibre"))
   sdfnet <- sdf_net()
