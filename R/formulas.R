@@ -153,13 +153,13 @@ make_inla_formula <- function(dat, y) {
   
   preds <- colnames(dat)
   re <- grep("_indexes", preds)
-  latent <- grep("latent_", preds)
-  copies <- grep("copy_latent_", preds)
-  
-  if(length(latent) > 0) {
-    re <- setdiff(re, latent)
-    latent = setdiff(latent, copies)
-  }
+  latent <- grep("fibre_latent_", preds)
+  copies <- grep("fibre_copy_latent_", preds)
+  # 
+  # if(length(latent) > 0) {
+  #   re <- setdiff(re, latent)
+  #   latent = setdiff(latent, copies)
+  # }
   
   #preds <- purrr::map_chr(rlang::syms(preds), rlang::expr_label)
   
@@ -177,7 +177,7 @@ make_inla_formula <- function(dat, y) {
     hypers_latent <- paste0("hyper_latent_", seq_along(latent))
     latent_fs <- glue::glue("f({preds[latent]}, model = 'iid', hyper = {hypers_latent})")
   }
-  
+
   if(length(latent) > 0) {
     hypers_copy <- paste0("hyper_copy_", seq_along(copies))
     copies_of <- sapply(strsplit(preds[copies], ".", fixed = TRUE), function(x) x[2])

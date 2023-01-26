@@ -1,53 +1,57 @@
 shape_data_inla <- function(pfcs, predictors,
-                            outcomes, latents) {
-  
-  # return(list(pfcs = pfcs, predictors = predictors,
-  #             outcomes = outcomes, latents = latents))
+                            outcomes, latents, multilik = FALSE) {
   
   ny <- ncol(outcomes)
-  ylen <- nrow(outcomes)
   
-  latent_df <- purrr::map(seq_along(pfcs), #pfcs, latents,
-                            ~ make_latent_data(pfcs[[.x]], latents[[.x]], ylen, .x)) 
-  latent_df <- expand_empty(!!!latent_df) %>%
-    dplyr::bind_cols()
+  names(pfcs) <- paste0("pfc_", seq_along(pfcs))
   
-  latent_copy_df <- purrr::map(seq_along(pfcs), #latents,
-                            ~ make_latent_copy(pfcs[[.x]], latents[[.x]], ny, ylen, .x))
-  latent_copy_df <- expand_empty(!!!latent_copy_df) %>%
-    dplyr::bind_cols()
-
-  y_df <- purrr::map(seq_along(pfcs), #latents,
-                      ~ make_y_data(pfcs[[.x]], latents[[.x]], ny, ylen, .x))
-  y_df <-  expand_empty(!!!y_df) %>%
-    dplyr::bind_cols()
+  dat <- dplyr::bind_cols(outcomes, dplyr::as_tibble(pfcs))
   
-  # if("(Intercept)" %in% colnames(predictors)) {
-  #   predictors <- dplyr::bind_cols(predictors %>%
-  #                                    dplyr::select(-`(Intercept)`),
-  #                                  predictors %>%
-  #                                    dplyr::select(`(Intercept)`) %>%
-  #                                    list() %>%
-  #                                    rep(ny) %>%
-  #                                    purrr::imap(function(x, y) {
-  #                                      colnames(x) <- paste0(colnames(x), "_", y)
-  #                                      x
-  #                                    }) %>%
-  #                                    dplyr::bind_cols())
-  # }
+  if(ny > 1) {
   
-  if("(Intercept)" %in% colnames(predictors)) {
+    new_y <- tidyr::pivot_longer(dat,
+                                 all_of(colnames(outcomes)),
+                                 names_to = "outcome_name",
+                                 values_to = "outcome_value")
+    
+    y_fac <- phyf::pf_as_pfc(as.factor(new_y$outcome_name))
+    
+    new_y <- new_y %>%
+      dplyr::mutate(dplyr::across(dplyr::starts_with("pfc_"),
+                                  ~ phyf::pf_row_kron(y_fac, .x))) %>%
+      dplyr::arrange(outcome_name)
+    
     d <- diag(ny)
-    ints <- tibble_block(as.data.frame(d), rep(list(predictors %>%
-                                     dplyr::select(.data$`(Intercept)`)),
-                                ny))
-    colnames(ints) <- paste0("Intercept_", seq_len(ny))
-    predictors <- dplyr::bind_cols(ints,
-                                  dplyr::bind_rows(rep(list(predictors %>%
-                                                              dplyr::select(-.data$`(Intercept)`)), ny)))
+    rownames(d) <- colnames(d) <- colnames(outcomes)
+    new_preds <- tibble_block(as.data.frame(d),
+                              list(predictors)) %>%
+      dplyr::arrange(.rownames) %>%
+      dplyr::select(-.rownames)
+    
+    new_pfcs <- new_y %>%
+      dplyr::select(dplyr::starts_with("pfc_"))
+    
+    new_y <- new_y %>%
+      dplyr::select(y = .data$outcome_value)
+    if(multilik) {
+      new_y <- tibble_block(as.data.frame(d),
+                            list(new_y)) %>%
+      dplyr::arrange(.rownames) %>%
+      dplyr::select(-.rownames)
+    }
+    
+  } else {
+    
+    new_pfcs <- dat %>%
+      dplyr::select(dplyr::starts_with("pfc_"))
+    
+    new_y <- dat %>%
+      dplyr::select(-dplyr::starts_with("pfc_"))
+    new_preds <- predictors
+    
   }
   
-  dat_pred <- purrr::imap(predictors,
+  dat_pred <- purrr::imap(new_preds,
                           compress_data)
   
   dat_pred <- purrr::transpose(dat_pred)
@@ -57,83 +61,16 @@ shape_data_inla <- function(pfcs, predictors,
     dplyr::slice(0)
   x <- dplyr::bind_rows(c(list(x), dat_pred$data))
   
-  pred_A <- do.call(cbind, dat_pred$A)
-  rownames(pred_A) <- paste0("y_", seq_len(nrow(pred_A)))
-  colnames(pred_A) <- paste0("x_", seq_len(ncol(pred_A)))
-  x_pfc <- phyf::pf_as_pfc(pred_A, is_tip = rep(TRUE, nrow(pred_A)))
-  x_df <- dplyr::tibble(x_pfc = x_pfc)
+  x_A <- do.call(cbind, dat_pred$A)
   
-  #x_df <- dplyr::bind_rows(rep(list(x_df), ny))
+  x_pfc_A <- purrr::map(new_pfcs, phyf::pf_as_sparse)
+  x_pfc <- purrr::imap_dfr(x_pfc_A,
+                           ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
   
-  # latent_copy <- latent_df %>%
-  #   dplyr::mutate(dplyr::across(.fns = ~ phyf::pf_ones(.x)))
-  #colnames(latent_copy_df) <- paste0("copy_", colnames(latent_copy_df))
+  x_all <- dplyr::bind_rows(x, x_pfc)
+  x_all_A <- do.call(cbind, c(list(x_A), x_pfc_A))
   
-  #x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, latent_copy_df))
-  #x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
-  
-  y_block <- as.data.frame(diag(seq_len(ny)))
-  ys <- tibble_block(y_block, purrr::imap(outcomes, 
-                                          ~ dplyr::tibble("{.y}" := .x)),
-                     glue_names = FALSE)
-  
-  ys_latent <- purrr::map(latents,
-                          ~ make_latent_y(.x, nrow(outcomes))) %>%
-    dplyr::bind_rows()
-  
-  ys_all <- dplyr::bind_rows(ys, ys_latent)
-  
-  y_df_A <- purrr::map(y_df, phyf::pf_as_sparse)
-  y_df_new <- purrr::imap_dfr(y_df_A,
-                               ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
-  
-  x_df_A <- purrr::map(x_df, phyf::pf_as_sparse)
-  x_df_new <- purrr::imap_dfr(x_df_A,
-                               ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x)))) %>%
-    dplyr::rowwise() %>%
-    dplyr::mutate(x_pfc_indexes = list(x[x_pfc_indexes, ])) %>%
-    tidyr::unnest(cols = dplyr::everything())
-  
-  if(sum(unlist(latents)) > 0) {
-    latent_copy_A <- purrr::map(latent_copy_df, 
-                                ~ phyf::pf_as_sparse(.x))
-    latent_copy_new <- purrr::imap_dfr(latent_copy_A, 
-                                   ~ dplyr::tibble("{.y}_indexes" := rep(seq_len(ncol(.x)), ny),
-                                                   "names" := paste0(.y, ":", rep(colnames(.x), ny)))) %>%
-      tidyr::separate(.data$names, c("type", "latent", "ename"), sep = ":") %>%
-      dplyr::group_by(latent, ename) %>%
-      dplyr::mutate(copy_num = seq_along(ename)) %>%
-      dplyr::ungroup() %>%
-      dplyr::select(-dplyr::all_of(c("type", "ename"))) %>%
-      dplyr::group_by(.data$latent, .data$copy_num) %>%
-      dplyr::group_nest() %>%
-      dplyr::rowwise() %>%
-      dplyr::mutate(data = list(data %>%
-                      stats::setNames(paste(latent, colnames(data), copy_num, sep = ":")))) %>%
-      dplyr::group_by(copy_num) %>%
-      dplyr::summarise(dplyr::bind_cols(data)) %>%
-      dplyr::ungroup() %>%
-      dplyr::select(-dplyr::all_of(c("copy_num")))
-    
-    latent_df_A <- purrr::map(latent_df, phyf::pf_as_sparse)
-    latent_df_new <- purrr::imap_dfr(latent_df_A,
-                                     ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
-  } else {
-    latent_copy_A <- empty_sparse()
-    latent_copy_new <- dplyr::tibble()
-    latent_df_A <- empty_sparse()
-    latent_df_new <- dplyr::tibble()
-  }
-  
-  #x_all_y <- dplyr::bind_cols(x_df, latent_copy)
-
-  x_all <- dplyr::bind_rows(x_df_new, y_df_new, latent_copy_new, latent_df_new)
-  
-  x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, rep(list(latent_copy_df), sum(unlist(latents)))))
-  x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
-  A_all <- do.call(cbind, purrr::map(x_all_A, phyf::pf_as_sparse))
-
-  #check_inla_dims(ys_all, x_all, A_all, ny, sum(unlist(latents)), ncol(predictors), length(pfcs))
+  ys_all <- new_y
   
   new_names <- make.names(c(names(ys_all), names(x_all)),
                           unique = TRUE)
@@ -145,9 +82,162 @@ shape_data_inla <- function(pfcs, predictors,
   
   names(ys_all) <- y_names
   names(x_all) <- x_names
-    
-  return(list(dat = x_all, y = ys_all, A = A_all, renamer = renamer))
   
+  random_rename <- purrr::map(new_pfcs,
+                              phyf::pf_edge_names)
+  
+  attr(renamer, "random") <- random_rename
+    
+  return(list(dat = x_all, y = ys_all, A = x_all_A, renamer = renamer))
+  
+  # return(list(new_y = new_y, predictors = predictors, y_fac = y_fac,
+  #             new_preds = new_preds, dat_pred = dat_pred,
+  #             outcomes = outcomes, x = x, x_A = x_A,
+  #             x_all = x_all, x_all_A = x_all_A))
+  # 
+  # ylen <- nrow(outcomes)
+  # 
+  # latent_df <- purrr::map(seq_along(pfcs), #pfcs, latents,
+  #                           ~ make_latent_data(pfcs[[.x]], latents[[.x]], ylen, .x)) 
+  # latent_df <- expand_empty(!!!latent_df) %>%
+  #   dplyr::bind_cols()
+  # 
+  # latent_copy_df <- purrr::map(seq_along(pfcs), #latents,
+  #                           ~ make_latent_copy(pfcs[[.x]], latents[[.x]], ny, ylen, .x))
+  # latent_copy_df <- expand_empty(!!!latent_copy_df) %>%
+  #   dplyr::bind_cols()
+  # 
+  # y_df <- purrr::map(seq_along(pfcs), #latents,
+  #                     ~ make_y_data(pfcs[[.x]], latents[[.x]], ny, ylen, .x))
+  # y_df <-  expand_empty(!!!y_df) %>%
+  #   dplyr::bind_cols()
+  # 
+  # # if("(Intercept)" %in% colnames(predictors)) {
+  # #   predictors <- dplyr::bind_cols(predictors %>%
+  # #                                    dplyr::select(-`(Intercept)`),
+  # #                                  predictors %>%
+  # #                                    dplyr::select(`(Intercept)`) %>%
+  # #                                    list() %>%
+  # #                                    rep(ny) %>%
+  # #                                    purrr::imap(function(x, y) {
+  # #                                      colnames(x) <- paste0(colnames(x), "_", y)
+  # #                                      x
+  # #                                    }) %>%
+  # #                                    dplyr::bind_cols())
+  # # }
+  # 
+  # if("(Intercept)" %in% colnames(predictors)) {
+  #   d <- diag(ny)
+  #   ints <- tibble_block(as.data.frame(d), rep(list(predictors %>%
+  #                                    dplyr::select(.data$`(Intercept)`)),
+  #                               ny))
+  #   colnames(ints) <- paste0("Intercept_", seq_len(ny))
+  #   predictors <- dplyr::bind_cols(ints,
+  #                                 dplyr::bind_rows(rep(list(predictors %>%
+  #                                                             dplyr::select(-.data$`(Intercept)`)), ny)))
+  # }
+  # 
+  # dat_pred <- purrr::imap(predictors,
+  #                         compress_data)
+  # 
+  # dat_pred <- purrr::transpose(dat_pred)
+  # 
+  # x <- dplyr::bind_cols(purrr::map(dat_pred$data,
+  #                                  ~ .x[1, ])) %>%
+  #   dplyr::slice(0)
+  # x <- dplyr::bind_rows(c(list(x), dat_pred$data))
+  # 
+  # pred_A <- do.call(cbind, dat_pred$A)
+  # rownames(pred_A) <- paste0("y_", seq_len(nrow(pred_A)))
+  # colnames(pred_A) <- paste0("x_", seq_len(ncol(pred_A)))
+  # x_pfc <- phyf::pf_as_pfc(pred_A, is_tip = rep(TRUE, nrow(pred_A)))
+  # x_df <- dplyr::tibble(x_pfc = x_pfc)
+  # 
+  # #x_df <- dplyr::bind_rows(rep(list(x_df), ny))
+  # 
+  # # latent_copy <- latent_df %>%
+  # #   dplyr::mutate(dplyr::across(.fns = ~ phyf::pf_ones(.x)))
+  # #colnames(latent_copy_df) <- paste0("copy_", colnames(latent_copy_df))
+  # 
+  # #x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, latent_copy_df))
+  # #x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
+  # 
+  # y_block <- as.data.frame(diag(seq_len(ny)))
+  # ys <- tibble_block(y_block, purrr::imap(outcomes, 
+  #                                         ~ dplyr::tibble("{.y}" := .x)),
+  #                    glue_names = FALSE)
+  # 
+  # ys_latent <- purrr::map(latents,
+  #                         ~ make_latent_y(.x, nrow(outcomes))) %>%
+  #   dplyr::bind_rows()
+  # 
+  # ys_all <- dplyr::bind_rows(ys, ys_latent)
+  # 
+  # y_df_A <- purrr::map(y_df, phyf::pf_as_sparse)
+  # y_df_new <- purrr::imap_dfr(y_df_A,
+  #                              ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
+  # 
+  # x_df_A <- purrr::map(x_df, phyf::pf_as_sparse)
+  # x_df_new <- purrr::imap_dfr(x_df_A,
+  #                              ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x)))) %>%
+  #   dplyr::rowwise() %>%
+  #   dplyr::mutate(x_pfc_indexes = list(x[x_pfc_indexes, ])) %>%
+  #   tidyr::unnest(cols = dplyr::everything())
+  # 
+  # if(sum(unlist(latents)) > 0) {
+  #   latent_copy_A <- purrr::map(latent_copy_df, 
+  #                               ~ phyf::pf_as_sparse(.x))
+  #   latent_copy_new <- purrr::imap_dfr(latent_copy_A, 
+  #                                  ~ dplyr::tibble("{.y}_indexes" := rep(seq_len(ncol(.x)), ny),
+  #                                                  "names" := paste0(.y, ":", rep(colnames(.x), ny)))) %>%
+  #     tidyr::separate(.data$names, c("type", "latent", "ename"), sep = ":") %>%
+  #     dplyr::group_by(latent, ename) %>%
+  #     dplyr::mutate(copy_num = seq_along(ename)) %>%
+  #     dplyr::ungroup() %>%
+  #     dplyr::select(-dplyr::all_of(c("type", "ename"))) %>%
+  #     dplyr::group_by(.data$latent, .data$copy_num) %>%
+  #     dplyr::group_nest() %>%
+  #     dplyr::rowwise() %>%
+  #     dplyr::mutate(data = list(data %>%
+  #                     stats::setNames(paste(latent, colnames(data), copy_num, sep = ":")))) %>%
+  #     dplyr::group_by(copy_num) %>%
+  #     dplyr::summarise(dplyr::bind_cols(data)) %>%
+  #     dplyr::ungroup() %>%
+  #     dplyr::select(-dplyr::all_of(c("copy_num")))
+  #   
+  #   latent_df_A <- purrr::map(latent_df, phyf::pf_as_sparse)
+  #   latent_df_new <- purrr::imap_dfr(latent_df_A,
+  #                                    ~ dplyr::tibble("{.y}_indexes" := seq_len(ncol(.x))))
+  # } else {
+  #   latent_copy_A <- empty_sparse()
+  #   latent_copy_new <- dplyr::tibble()
+  #   latent_df_A <- empty_sparse()
+  #   latent_df_new <- dplyr::tibble()
+  # }
+  # 
+  # #x_all_y <- dplyr::bind_cols(x_df, latent_copy)
+  # 
+  # x_all <- dplyr::bind_rows(x_df_new, y_df_new, latent_copy_new, latent_df_new)
+  # 
+  # x_all_y <- dplyr::bind_cols(expand_empty(x_df, y_df, rep(list(latent_copy_df), sum(unlist(latents)))))
+  # x_all_A <- dplyr::bind_rows(x_all_y, latent_df)
+  # A_all <- do.call(cbind, purrr::map(x_all_A, phyf::pf_as_sparse))
+  # 
+  # #check_inla_dims(ys_all, x_all, A_all, ny, sum(unlist(latents)), ncol(predictors), length(pfcs))
+  # 
+  # new_names <- make.names(c(names(ys_all), names(x_all)),
+  #                         unique = TRUE)
+  # y_names <- new_names[seq_along(names(ys_all))]
+  # x_names <- new_names[-seq_along(names(ys_all))]
+  # 
+  # renamer <- dplyr::tibble(orig_names = c(names(ys_all), names(x_all)),
+  #                          new_names = c(y_names, x_names))
+  # 
+  # names(ys_all) <- y_names
+  # names(x_all) <- x_names
+  #   
+  # return(list(dat = x_all, y = ys_all, A = A_all, renamer = renamer))
+  # 
 }
 
 compress_data <- function(predictor, name) {
@@ -354,6 +444,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
                                    engine,
                                    dat_list) {
   
+  enames <- attr(fit$renamer, "random")
   renamer <- fit$renamer
   renames <- renamer$new_names
   renamer <- renamer$orig_names
@@ -376,7 +467,8 @@ fibre_process_fit_inla <- function(fit, blueprint,
   
   random <- purrr::map(fit$summary.random, ~.x[ , c(1:4, 6)])
   
-  enames <- purrr::map(pfcs, phyf::pf_edge_names)
+  #enames <- attr(fit$renamer, "random")
+  #enames <- purrr::map(pfcs, phyf::pf_edge_names)
   
   random <- purrr::map2(random, enames,
                         ~ {.x$ID <- .y[.x$ID]; .x})
@@ -421,7 +513,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
     dplyr::mutate(parameter = gsub("Precision", "Variance", .data$parameter))
   rownames(hyper_df) <- NULL
   
-  hyper_df$parameter[grepl("y_pfc_", hyper_df$parameter)] <- paste("Variance for", 
+  hyper_df$parameter[grepl("pfc_", hyper_df$parameter)] <- paste("Variance for", 
                                                                    labels,
                                                                    "random effect")
 
