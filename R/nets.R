@@ -211,6 +211,43 @@ sdf_net <- torch::nn_module("sdf_net",
 
                             },
 
+                            render_silhouette = function(latent_code = NULL,
+                                                         resolution = 800,
+                                                         camera_position = default_camera(),
+                                                         light_position = default_light(),
+                                                         threshold = 0.0005,
+                                                         iterations = 1000,
+                                                         ssaa = 2,
+                                                         radius = 1.0,
+                                                         crop = FALSE,
+                                                         color = c(R = 255 / 255, G = 237 / 255, B = 95 / 255),
+                                                         vertical_cutoff = NULL,
+                                                         plot = TRUE,
+                                                         cuda = FALSE,
+                                                         batch_size = 50000,
+                                                         verbose = FALSE,
+                                                         return_type = "image"
+                                                         ) {
+
+                                                            render_silhouette(self, latent_code = latent_code,
+                                                                              resolution = resolution,
+                                                                              camera_position = camera_position,
+                                                                              light_position = light_position,
+                                                                              threshold = threshold,
+                                                                              iterations = iterations,
+                                                                              ssaa = ssaa,
+                                                                              radius = radius,
+                                                                              crop = crop,
+                                                                              color = color,
+                                                                              vertical_cutoff = vertical_cutoff,
+                                                                              plot = plot,
+                                                                              cuda = cuda,
+                                                                              batch_size = batch_size,
+                                                                              verbose = verbose,
+                                                                              return_type = return_type)
+
+                            },
+
                             get_voxels = function(latent_code,
                                                   resolution = 100,
                                                   sphere_only = TRUE) {

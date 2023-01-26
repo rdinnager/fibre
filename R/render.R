@@ -109,32 +109,11 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   rlang::check_installed("imager")
   if(verbose) message("started")
 
-  camera_forward <- camera_position / norm_vec(camera_position) * -1
+  setup <- setup_render(camera_position, resolution, ssaa, radius)
 
-  camera_distance <- norm_vec(camera_position)
-  up <- c(0, 1, 0)
-  camera_right <- Morpho::crossProduct(camera_forward, up)
-  camera_right <- camera_right / norm_vec(camera_right)
-  camera_up <- Morpho::crossProduct(camera_forward, camera_right)
-  camera_up <- camera_up / norm_vec(camera_up)
-
-  screenspace_points <- tidyr::expand_grid(
-    x = seq(-1, 1, length.out =  resolution * ssaa),
-    y = seq(-1, 1, length.out = resolution * ssaa),
-  ) %>%
-    as.matrix()
-  screenspace_points <- screenspace_points[ , c(2:1)]
-
-  points <- matrix(camera_position, nrow = 1)[rep(1, nrow(screenspace_points)), ]
-  #points = points.astype(np.float32)
-
-  focal_distance <- 1.0 / tan(asin(radius / camera_distance))
-  ray_directions <- screenspace_points[ , 1] * matrix(camera_right, nrow = 1)[rep(1, nrow(screenspace_points)), ] +
-    screenspace_points[ , 2] * matrix(camera_up, nrow = 1)[rep(1, nrow(screenspace_points)), ] +
-    focal_distance * matrix(camera_forward, nrow = 1)[rep(1, nrow(screenspace_points)), ]
-  #ray_directions = ray_directions.transpose()
-  ray_directions <- ray_directions / apply(ray_directions, 1, norm_vec)
-  #ray_directions /= np.linalg.norm(ray_directions, axis=1)[:, np.newaxis]
+  points <- setup$points
+  ray_directions <- setup$ray_directions
+  screenspace_points <- setup$screenspace_points
 
   b <- einsum::einsum('ij,ij->i', points, ray_directions) * 2
   #b = np.einsum('ij,ij->i', points, ray_directions) * 2
@@ -152,6 +131,23 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   #model_mask <- torch::torch_zeros(points$shape[1], dtype = torch::torch_uint8())
   model_mask <- integer(nrow(points))
 
+  if(verbose) {
+    message("calculating silhouette")
+  }
+
+  model_mask <- render_silhouette(sdf_net, latent_code = latent_code,
+                                  resolution = resolution,
+                                  camera_position = camera_position,
+                                  light_position = light_position,
+                                  threshold = threshold, iterations = iterations,
+                                  ssaa = ssaa, radius = radius, crop = crop, color = color,
+                                  vertical_cutoff = vertical_cutoff,
+                                  plot = FALSE, cuda = cuda,
+                                  batch_size = batch_size, verbose = FALSE,
+                                  return_type = "mask", setup = setup)
+
+  indices <- indices[indices %in% which(model_mask == 1)]
+
   if(verbose) message("starting raymarching")
   for(i in seq_len(iterations)) {
     test_points <- torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32())
@@ -166,7 +162,7 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
 
     #hits = abs(sdf) < threshold
     hits = sdf >= 0 & sdf < threshold
-    model_mask[indices[hits]] <- 1
+    #model_mask[indices[hits]] <- 1
     indices = indices[!hits]
 
     misses <- as.vector(as.matrix(((torch::torch_norm(torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32()),
@@ -179,15 +175,15 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
     #print(range(sdf))
   }
   if(verbose) message("done raymarching")
-  model_mask[indices] <- 1
+  #model_mask[indices] <- 1
 
   # test <- cbind(screenspace_points, model_mask) %>% as.data.frame()
   # ggplot(test, aes(x, y)) + geom_raster(aes(fill = model_mask)) + coord_equal() + theme_minimal()
 
-  if(!is.null(vertical_cutoff)) {
-    model_mask[points[ , 2] > vertical_cutoff] <- 0
-    model_mask[points[ , 2] < -vertical_cutoff] <- 0
-  }
+  # if(!is.null(vertical_cutoff)) {
+  #   model_mask[points[ , 2] > vertical_cutoff] <- 0
+  #   model_mask[points[ , 2] < -vertical_cutoff] <- 0
+  # }
 
   # if(latent_code$shape[1] == 1) {
   #     latent_code <- latent_code$`repeat`(c(points$shape[1], 1L))
@@ -280,4 +276,138 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   }
 
   return(img)
+}
+
+
+render_silhouette <- function(sdf_net, latent_code = NULL, resolution = 800, camera_position, light_position, threshold = 0.005, iterations = 1000, ssaa = 2, radius = 1.0, crop = FALSE, color = c(R = 0, G = 0, B = 0), vertical_cutoff = NULL, plot = TRUE, cuda = FALSE, batch_size = 50000, verbose = FALSE, return_type = c("image", "mask"), setup = NULL) {
+
+  rlang::check_installed("Morpho")
+  rlang::check_installed("einsum")
+  rlang::check_installed("imager")
+
+  return_type <- match.arg(return_type)
+
+  if(verbose) message("started")
+
+  if(is.null(setup)) {
+    setup <- setup_render(camera_position, resolution, ssaa, radius)
+  }
+
+  points <- setup$points
+  ray_directions <- setup$ray_directions
+  screenspace_points <- setup$screenspace_points
+
+  b <- einsum::einsum('ij,ij->i', points, ray_directions) * 2
+  #b = np.einsum('ij,ij->i', points, ray_directions) * 2
+  c = ((as.vector(camera_position) %*% as.vector(camera_position)) - radius * radius)[1, 1]
+  distance_to_sphere = (-b - sqrt((b^2) - 4 * c)) / 2
+
+  indices <- which(is.finite(distance_to_sphere))
+  #indices = np.argwhere(np.isfinite(distance_to_sphere)).reshape(-1)
+
+  points[indices, ] <- points[indices, ] + ray_directions[indices, ] * as.vector(distance_to_sphere[indices])
+
+  #points <- torch::torch_tensor(points, dtype = torch::torch_float32())
+  #ray_directions_t <- torch::torch_tensor(ray_directions, dtype = torch::torch_float32())
+
+  #indices <- torch::torch_tensor(indices, dtype = torch::torch_int64())
+  #model_mask <- torch::torch_zeros(points$shape[1], dtype = torch::torch_uint8())
+  model_mask <- integer(nrow(points))
+  first_hit <- FALSE
+
+  if(verbose) message("starting raymarching")
+  for(i in seq_len(iterations)) {
+    test_points <- torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32())
+
+    sdf <- sdf_net$evaluate_in_batches(test_points, latent_code, return_cpu = TRUE, cuda = cuda, batch_size = batch_size)
+    sdf <- as.vector(as.matrix(sdf))
+    sdf[sdf > 0.1] <- sdf[sdf > 0.1] / 2
+    points[indices, ] <- points[indices, , drop = FALSE] + ray_directions[indices, , drop = FALSE ] * sdf
+
+    #hits = abs(sdf) < threshold
+    hits = sdf <= threshold
+    if(sum(hits) > 0) {
+      first_hit <- TRUE
+    }
+    model_mask[indices[hits]] <- 1
+    indices = indices[!hits]
+
+    if(first_hit) {
+      misses <- as.vector(as.matrix(((torch::torch_norm(torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32()),
+                                  dim = 2) > radius)))) == 1
+      indices = indices[!misses]
+    }
+
+    if (length(indices) < 2) {
+      break
+    }
+    #print(range(sdf))
+  }
+  if(verbose) message("done raymarching")
+  model_mask[indices] <- 1
+
+  # test <- cbind(screenspace_points, model_mask) %>% as.data.frame()
+  # ggplot(test, aes(x, y)) + geom_raster(aes(fill = model_mask)) + coord_equal() + theme_minimal()
+
+  if(!is.null(vertical_cutoff)) {
+    model_mask[points[ , 2] > vertical_cutoff] <- 0
+    model_mask[points[ , 2] < -vertical_cutoff] <- 0
+  }
+
+  #model_points <- points[model_mask, , drop = FALSE]
+
+  if(return_type == "mask") {
+    return(model_mask)
+  }
+
+  model_mask <- model_mask == 1
+  bg <- c(1, 1, 1)
+  col_mat <- matrix(rep(bg, nrow(screenspace_points)), nrow = nrow(screenspace_points))
+  col_mat[model_mask, ] <- matrix(color, nrow = length(model_mask), ncol = 3, byrow = TRUE)
+  img_arr <- array(t(col_mat), dim = c(3, resolution * ssaa, resolution * ssaa))
+  img_arr <- aperm(img_arr, c(2, 3, 1))
+  suppressWarnings(img <- imager::as.cimg(img_arr))
+
+  message("done image")
+
+  if (ssaa != 1) {
+   img <- imager::resize(img, resolution, resolution, interpolation_type = 6)
+  }
+
+  if(plot) {
+    plot(img)
+  }
+
+  return(img)
+}
+
+setup_render <- function(camera_position, resolution, ssaa, radius) {
+
+  camera_forward <- camera_position / norm_vec(camera_position) * -1
+
+  camera_distance <- norm_vec(camera_position)
+  up <- c(0, 1, 0)
+  camera_right <- Morpho::crossProduct(camera_forward, up)
+  camera_right <- camera_right / norm_vec(camera_right)
+  camera_up <- Morpho::crossProduct(camera_forward, camera_right)
+  camera_up <- camera_up / norm_vec(camera_up)
+
+  screenspace_points <- tidyr::expand_grid(
+    x = seq(-1, 1, length.out =  resolution * ssaa),
+    y = seq(-1, 1, length.out = resolution * ssaa),
+  ) %>%
+    as.matrix()
+  screenspace_points <- screenspace_points[ , c(2:1)]
+
+  points <- matrix(camera_position, nrow = 1)[rep(1, nrow(screenspace_points)), ]
+  #points = points.astype(np.float32)
+
+  focal_distance <- 1.0 / tan(asin(radius / camera_distance))
+  ray_directions <- screenspace_points[ , 1] * matrix(camera_right, nrow = 1)[rep(1, nrow(screenspace_points)), ] +
+    screenspace_points[ , 2] * matrix(camera_up, nrow = 1)[rep(1, nrow(screenspace_points)), ] +
+    focal_distance * matrix(camera_forward, nrow = 1)[rep(1, nrow(screenspace_points)), ]
+  #ray_directions = ray_directions.transpose()
+  ray_directions <- ray_directions / apply(ray_directions, 1, norm_vec)
+  #ray_directions /= np.linalg.norm(ray_directions, axis=1)[:, np.newaxis]
+  list(points = points, ray_directions = ray_directions, screenspace_points = screenspace_points)
 }

@@ -26,6 +26,15 @@ test <- sdfnet$render_image(latent_code = latent,
                             max_ray_move = 0.02,
                             verbose = TRUE)
 
+test <- sdfnet$render_silhouette(latent_code = latent,
+                                 camera_position = get_camera_position(-3, 100, 200),
+                                 resolution = 600,
+                                 iterations = 1000,
+                                 ssaa = 1,
+                                 threshold = 0.0005,
+                                 cuda = TRUE,
+                                 verbose = TRUE)
+
 mesh <- sdfnet$get_mesh(latent, resolution = 400)
 rgl::shade3d(mesh, col = "red")
 
