@@ -4,6 +4,7 @@ navbar:
     right: [blog]
   components:
     blog:
+      text: Blog
       href: https://rdinnager.github.io/pulling_threads/
       aria-label: Blog
 template:
