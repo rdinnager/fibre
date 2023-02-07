@@ -1,7 +1,7 @@
 url: https://rdinnager.github.io/fibre/
 navbar:
   structure:
-    right: [blog]
+    left: [blog]
   components:
     blog:
       text: Blog
