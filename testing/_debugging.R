@@ -9,6 +9,13 @@ x <- mod$dat
 A <- mod$A
 ys_all <- mod$y
 
+set.seed(375)
+
+mod <- fibre(latent_code_1 + latent_code_2 +
+               latent_code_3 ~ bre_brownian(phlo),
+             data = bird_beak_codes,
+             engine_options = list(verbose = TRUE))
+
 y <- bird_beak_codes %>%
   select(starts_with("latent_")) %>%
   as.matrix()

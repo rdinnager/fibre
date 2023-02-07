@@ -60,8 +60,8 @@ fibre.default <- function(x, ...) {
 
 #' @export
 #' @rdname fibre
-fibre.data.frame <- function(x, y, 
-                             intercept = TRUE, 
+fibre.data.frame <- function(x, y,
+                             intercept = TRUE,
                              engine = c("inla", "glmnet", "torch"),
                              engine_options = list(),
                              ...) {
@@ -74,7 +74,7 @@ fibre.data.frame <- function(x, y,
 
 #' @export
 #' @rdname fibre
-fibre.matrix <- function(x, y, 
+fibre.matrix <- function(x, y,
                          intercept = TRUE,
                          engine = c("inla", "glmnet", "torch"),
                          engine_options = list(),
@@ -88,16 +88,16 @@ fibre.matrix <- function(x, y,
 
 #' @export
 #' @rdname fibre
-fibre.formula <- function(formula, data, 
+fibre.formula <- function(formula, data,
                           intercept = TRUE,
                           family = "gaussian",
                           engine = c("inla", "glmnet", "torch"),
                           engine_options = list(),
                           ...) {
   engine <- match.arg(engine)
-  processed <- hardhat::mold(formula, data, 
+  processed <- hardhat::mold(formula, data,
                              blueprint = fibre_formula_blueprint(intercept = intercept))
-  
+
   if(engine == "glmnet" && length(processed$extras$model_info) > 1) {
     rlang::warn('engine = "glmnet" currently only concatenates multiple bre() calls in a model (so only one parameter is fit on all rates across all bre calls).')
   }
@@ -111,8 +111,8 @@ fibre.formula <- function(formula, data,
 
 #' @export
 #' @rdname fibre
-fibre.recipe <- function(x, data, 
-                         intercept = TRUE, 
+fibre.recipe <- function(x, data,
+                         intercept = TRUE,
                          engine = c("inla", "glmnet", "torch"),
                          engine_options = list(),
                          ...) {
@@ -125,7 +125,7 @@ fibre.recipe <- function(x, data,
 # Bridge
 
 fibre_bridge <- function(processed, family, engine, engine_options, ...) {
-  
+
   predictors <- processed$predictors
   outcomes <- processed$outcomes
   offset <- processed$extras$offset
@@ -142,7 +142,7 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
   labels <- purrr::map(processed$extras$model_info,
                            "label")
 
-  
+
   fit <- fibre_impl(predictors, outcomes,
                     offset, pfcs,
                     rate_dists, hypers,
@@ -151,7 +151,7 @@ fibre_bridge <- function(processed, family, engine, engine_options, ...) {
                     engine,
                     engine_options,
                     processed$blueprint)
-  
+
   return(fit)
 
 }
@@ -168,15 +168,15 @@ fibre_impl <- function(predictors, outcomes,
                        engine,
                        engine_options,
                        blueprint) {
-  
+
   if(engine == "glmnet" && sum(unlist(latents)) > 0) {
     rlang::abort('engine = "glmnet" does not support argument latent > 0, try engine = "torch"')
   }
-  
+
   if(engine == "inla" && sum(unlist(latents)) > 0) {
     rlang::abort('engine = "inla" does not support argument latent > 0, try engine = "torch"')
   }
-  
+
   if(engine == "glmnet") {
     complete <- complete.cases(outcomes)
     to_predict <- list(predictors = predictors,
@@ -186,7 +186,7 @@ fibre_impl <- function(predictors, outcomes,
     pfcs <- purrr::map(pfcs,
                        ~ .x[complete])
   }
-  
+
   dat_list <- switch(engine,
                      inla = shape_data_inla(pfcs,
                                             predictors,
@@ -196,23 +196,23 @@ fibre_impl <- function(predictors, outcomes,
                                                 predictors,
                                                 outcomes,
                                                 rate_dists))
-  
+
   #return(dat_list)
-  
-  form <- switch(engine, 
+
+  form <- switch(engine,
                  inla = make_inla_formula(dat_list$dat, dat_list$y),
                  glmnet = NULL)
-  
-  
+
+
   if(engine == "inla") {
-    
+
     # family_hyper <- engine_options$control.family$hyper
     # engine_options$control.family$hyper <- NULL
-  
+
     family <- get_families(family, colnames(dat_list$y))
     family_hyper <- family$hyper
     family <- family$family
-    
+
     hypers <- form$hypers
     form <- form$form
     inla_dat <- INLA::inla.stack(data = list(y = dat_list$y),
@@ -226,14 +226,14 @@ fibre_impl <- function(predictors, outcomes,
                          control.family = family_hyper,
                          inla.mode = "experimental")
     inla_options <- utils::modifyList(inla_options, engine_options, keep.null = TRUE)
-    
-    n_re <- length(hypers$re) 
+
+    n_re <- length(hypers$re)
     if(n_re > 0) {
       hypers_re <- hypers[seq_along(hypers$re)]
       names(hypers_re) <- hypers$re
       rlang::env_bind(rlang::f_env(form), !!!hypers_re)
-    } 
-    
+    }
+
     if(length(hypers$latent) > 0) {
       hypers_latent <- hypers[seq_along(hypers$latent) + n_re]
       names(hypers_latent) <- hypers$latent
@@ -242,11 +242,11 @@ fibre_impl <- function(predictors, outcomes,
       rlang::env_bind(rlang::f_env(form), !!!hypers_latent)
       rlang::env_bind(rlang::f_env(form), !!!hypers_copy)
     }
-    
+
   }
-  
+
   if(engine == "glmnet") {
-    glmnet_options <- list(standardize = FALSE, 
+    glmnet_options <- list(standardize = FALSE,
                            nlambda = 1000,
                            lambda.min.ratio = 0.00001 / nrow(dat_list$dat))
     if(!is.null(engine_options$alpha)) {
@@ -257,9 +257,9 @@ fibre_impl <- function(predictors, outcomes,
     }
     glmnet_options <- utils::modifyList(glmnet_options, engine_options, keep.null = TRUE)
   }
-  
+
   #return(list(inla_dat, form, family, family_hyper))
-  
+
   fit <- switch(engine,
                 inla = rlang::exec(INLA::inla, formula = form,
                                    data = INLA::inla.stack.data(inla_dat),
@@ -275,12 +275,12 @@ fibre_impl <- function(predictors, outcomes,
                                      !!!glmnet_options),
                 rlang::abort("Invalid engine argument")
   )
-  
+
   fit <- list(fit = fit, renamer = dat_list$renamer)
-  
+  #print(dat_list$dat_uncompressed)
   switch(engine,
          inla = fibre_process_fit_inla(fit, blueprint,
-                                       predictors,
+                                       dat_list$dat_uncompressed,
                                        pfcs,
                                        rate_dists,
                                        labels,
@@ -294,6 +294,6 @@ fibre_impl <- function(predictors, outcomes,
                                            engine,
                                            rate_dists)
          )
-  
-  
+
+
 }
