@@ -1,6 +1,8 @@
 ---
 title: "R Notebook"
 output: html_notebook
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ## High Dimensional Phylogenetic Modeling
@@ -102,7 +104,7 @@ Plot the tow more latent codes on the phylogeny as separate plots (any ones). Ad
 
 ## Let's Run A Model
 
-## Choose a Clad to Model
+## Choose a Clade to Model
 
 Even though `{fibre}` is pretty fast, we might not want to spend the time to fit a model to all 64 variables for all \~13,000 or so edges in the phylogeny (though this would take less than half an hour). So, the first thing we will do it filter our dataset to some clade of interest, and in the process learn how you can easily filter a `pf` to a subtree.
 
@@ -151,7 +153,7 @@ fit
 
 ```{r}
 preds <- Pelecaniformes %>%
-  bind_cols(predict(fit, Pelecaniformes))
+  bind_cols(predict(fit))
 ```
 
 ## Extract ancestral predictions
