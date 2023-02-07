@@ -29,29 +29,41 @@
 #' @export
 predict.fibre <- function(object, new_data = NULL, type = "numeric", ...) {
   if(is.null(new_data)) {
-    return(object$saved_predictions %>% dplyr::select(-dplyr::all_of("label")))
+    preds <- object$saved_predictions %>% dplyr::select(-dplyr::all_of("label")) %>%
+      dplyr::mutate(col = attr(object$extras$data$renamer, "orig_col_nums"),
+                    row = attr(object$extras$data$renamer, "orig_row_nums")) %>%
+      dplyr::arrange(col, row) %>%
+      dplyr::select(-row) %>%
+      dplyr::group_by(col) %>%
+      dplyr::group_split(.keep = FALSE)
+
+    names(preds) <- attr(object$extras$data$renamer, "outcome_names")
+
+    return(preds)
+  } else {
+    rlang::abort("Prediction with new_data != NULL is not yet supported.")
   }
-  
+
   forged <- hardhat::forge(new_data, object$blueprint)
   pfcs <- purrr::map(forged$extras$model_info,
                      "phyf")
   to_pred <- purrr::map(pfcs,
                         phyf::pf_labels) %>%
-    dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(..., 
-                                                          repair = "unique", 
+    dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(...,
+                                                          repair = "unique",
                                                           quiet = TRUE)) %>%
-    dplyr::bind_cols(forged$predictors, 
-                     .name_repair = ~ vctrs::vec_as_names(..., 
-                                                          repair = "unique", 
+    dplyr::bind_cols(forged$predictors,
+                     .name_repair = ~ vctrs::vec_as_names(...,
+                                                          repair = "unique",
                                                           quiet = TRUE)) %>%
     tidyr::unite(label, dplyr::everything())
-  
+
   preds <- to_pred %>%
     dplyr::left_join(object$saved_predictions, by = "label") %>%
     dplyr::select(-dplyr::all_of("label"))
-  
+
   to_pred <- to_pred$label[!to_pred$label %in% object$saved_predictions$label]
-  
+
   if(length(to_pred) == 0) {
     return(preds)
   }
