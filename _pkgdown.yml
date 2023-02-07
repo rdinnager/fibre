@@ -1,4 +1,13 @@
 url: https://rdinnager.github.io/fibre/
+navbar:
+  structure:
+    left:  [intro, reference, articles, tutorials, news, blog]
+    right: [search, github]
+  components:
+    blog:
+      text: Blog
+      href: https://rdinnager.github.io/pulling_threads/
+      aria-label: Blog
 template:
   bootstrap: 5
 
