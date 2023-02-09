@@ -1,5 +1,10 @@
 library(phyf)
 library(tidyverse)
+
+data("vert_bmr")
+
+fibre_mod <- fibre(lnBMR ~ bre_brownian(phlo), data = vert_bmr)
+
 data(bird_beak_codes)
 mod <- fibre(latent_code_1 + latent_code_2 +
                latent_code_3 ~ bre_brownian(phlo) + X,

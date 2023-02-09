@@ -39,7 +39,8 @@ Suggests:
     orientlib,
     Morpho,
     einsum,
-    imager
+    imager,
+    movMF
 VignetteBuilder: knitr
 Imports: 
     ape,
