@@ -284,7 +284,7 @@ sdf_net <- torch::nn_module("sdf_net",
                               rlang::check_installed("rmarchingcubes")
                               rlang::check_installed("rgl")
 
-                              voxels <-self$get_voxels(latent_code)
+                              voxels <-self$get_voxels(latent_code, resolution = resolution)
                               mesh <- rmarchingcubes::contour3d(voxels$voxels,
                                                                 0,
                                                                 x = voxels$x,
