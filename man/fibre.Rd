@@ -17,8 +17,10 @@ fibre(x, ...)
   x,
   y,
   intercept = TRUE,
-  engine = c("inla", "glmnet", "mgcv"),
+  engine = c("inla", "glmnet", "torch"),
   engine_options = list(),
+  ncores = NULL,
+  verbose = 0,
   ...
 )
 
@@ -26,8 +28,10 @@ fibre(x, ...)
   x,
   y,
   intercept = TRUE,
-  engine = c("inla", "glmnet", "mgcv"),
+  engine = c("inla", "glmnet", "torch"),
   engine_options = list(),
+  ncores = NULL,
+  verbose = 0,
   ...
 )
 
@@ -36,8 +40,10 @@ fibre(x, ...)
   data,
   intercept = TRUE,
   family = "gaussian",
-  engine = c("inla", "glmnet", "mgcv"),
+  engine = c("inla", "glmnet", "torch"),
   engine_options = list(),
+  ncores = NULL,
+  verbose = 0,
   ...
 )
 
@@ -45,8 +51,10 @@ fibre(x, ...)
   x,
   data,
   intercept = TRUE,
-  engine = c("inla", "glmnet", "mgcv"),
+  engine = c("inla", "glmnet", "torch"),
   engine_options = list(),
+  ncores = NULL,
+  verbose = 0,
   ...
 )
 }

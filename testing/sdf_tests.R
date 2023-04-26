@@ -35,7 +35,7 @@ test <- sdfnet$render_silhouette(latent_code = latent,
                                  cuda = TRUE,
                                  verbose = TRUE)
 
-mesh <- sdfnet$get_mesh(latent, resolution = 400)
+mesh <- sdfnet$get_mesh(latent, resolution = 120)
 rgl::shade3d(mesh, col = "red")
 
 for(i in 1:180) {

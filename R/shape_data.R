@@ -1,6 +1,4 @@
-shape_data_inla <- function(pfcs, predictors,
-                            outcomes, latents, multilik = FALSE) {
-
+shape_data_preprocess <- function(outcomes, pfcs, predictors, multilik, multi) {
   ny <- ncol(outcomes)
   ynames <- colnames(outcomes)
 
@@ -8,7 +6,7 @@ shape_data_inla <- function(pfcs, predictors,
 
   dat <- dplyr::bind_cols(outcomes, dplyr::as_tibble(pfcs))
 
-  if(ny > 1) {
+  if(ny > 1 && multi) {
 
     new_y <- tidyr::pivot_longer(dat %>%
                                    dplyr::mutate(row = 1:dplyr::n()),
@@ -59,6 +57,16 @@ shape_data_inla <- function(pfcs, predictors,
     orig_row_nums <- seq_len(nrow(new_y))
 
   }
+
+  list(new_y = new_y, new_preds = new_preds, new_pfcs = new_pfcs,
+       orig_col_nums = orig_col_nums, orig_row_nums = orig_col_nums,
+       ynames = ynames)
+}
+
+shape_data_inla <- function(pfcs, predictors,
+                            outcomes, latents, multilik = FALSE) {
+
+  c(new_y, new_preds, new_pfcs, orig_col_nums, orig_row_nums, ynames) %<-% shape_data_preprocess(outcomes, pfcs, predictors, multilik, multi = TRUE)
 
   dat_pred <- purrr::imap(new_preds,
                           compress_data)
@@ -458,7 +466,8 @@ fibre_process_fit_inla <- function(fit, blueprint,
                                    rate_dists,
                                    labels,
                                    engine,
-                                   dat_list) {
+                                   dat_list,
+                                   verbose) {
 
   enames <- attr(fit$renamer, "random")
   orig_col_nums <- attr(fit$renamer, "orig_col_nums")
@@ -470,10 +479,10 @@ fibre_process_fit_inla <- function(fit, blueprint,
 
   fit <- fit$fit
 
-  fixed_df <- fit$summary.fixed[ , c(1:3, 5)] %>%
+  fixed_df <- fit$summary.fixed[ , c(1:5)] %>%
     as.data.frame() %>%
     dplyr::mutate(parameter = renamer[rownames(fit$summary.fixed)]) %>%
-    dplyr::select(.data$parameter, .data$mean, .data$sd, .data$`0.025quant`, .data$`0.975quant`)
+    dplyr::select(.data$parameter, .data$mean, .data$sd, .data$`0.025quant`, .data$`0.5quant`, .data$`0.975quant`)
   rownames(fixed_df) <- NULL
 
   names(fit$marginals.fixed) <- renamer[names(fit$marginals.fixed)]
@@ -483,7 +492,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
   fixed_df <- fixed_df %>%
     dplyr::mutate(marginal = fixed_marg)
 
-  random <- purrr::map(fit$summary.random, ~.x[ , c(1:4, 6)])
+  random <- purrr::map(fit$summary.random, ~.x[ , c(1:6)])
 
   #enames <- attr(fit$renamer, "random")
   #enames <- purrr::map(pfcs, phyf::pf_edge_names)
@@ -524,10 +533,10 @@ fibre_process_fit_inla <- function(fit, blueprint,
                            ~ INLA::inla.tmarginal(function(y) 1/y, .x))
 
   hyper_df <- purrr::map_dfr(hyper_marg,
-                             ~ INLA::inla.zmarginal(.x, silent = TRUE))[ , c(1:3, 7)] %>%
+                             ~ INLA::inla.zmarginal(.x, silent = TRUE))[ , c(1:3, 5, 7)] %>%
     as.data.frame() %>%
     dplyr::mutate(parameter = rownames(fit$summary.hyperpar)) %>%
-    dplyr::select(.data$parameter, .data$mean, .data$sd, `0.025quant` = .data$`quant0.025`, `0.975quant` = .data$`quant0.975`) %>%
+    dplyr::select(.data$parameter, .data$mean, .data$sd, `0.025quant` = .data$`quant0.025`, `0.5quant` = .data$`quant0.5`, `0.975quant` = .data$`quant0.975`) %>%
     dplyr::mutate(parameter = gsub("Precision", "Variance", .data$parameter))
   rownames(hyper_df) <- NULL
 
@@ -553,7 +562,7 @@ fibre_process_fit_inla <- function(fit, blueprint,
                                                           repair = "unique",
                                                           quiet = TRUE)) %>%
     tidyr::unite(label, dplyr::everything()) %>%
-    dplyr::bind_cols(fit$summary.fitted.values[seq_along(pfc_labels[[1]]), c(1:3, 5)] %>%
+    dplyr::bind_cols(fit$summary.fitted.values[seq_along(pfc_labels[[1]]), c(1:5)] %>%
                        dplyr::rename_with(function(x) paste0(".pred_", x)))
   if(max(orig_col_nums) > 1) {
 
@@ -592,22 +601,26 @@ tmarginal_list <- function(fun, x, ...) {
 
 shape_data_glmnet <- function(pfcs,
                               predictors,
+                              multi = FALSE,
                               outcomes = NULL,
-                              rate_dists = "") {
+                              rate_dists = "",
+                              multilik = FALSE) {
 
-  if(!is.null(outcomes)) {
-    y <- as.matrix(outcomes)
+  c(new_y, new_preds, new_pfcs, orig_col_nums, orig_row_nums, ynames) %<-% shape_data_preprocess(outcomes, pfcs, predictors, multilik, multi)
+
+  if(!is.null(new_y)) {
+    y <- as.matrix(new_y)
   } else {
     y <- NULL
   }
-  if(length(pfcs) == 1) {
+  if(length(new_pfcs) == 1) {
 
     if(rate_dists == "Brownian") {
       expo <- 2
     } else {
       expo <- 1
     }
-    pfcs_expo <- pfcs[[1]]^expo
+    pfcs_expo <- new_pfcs[[1]]^expo
     x <- phyf::pf_as_sparse(pfcs_expo)
     pfact <- phyf::pf_mean_edge_features(pfcs_expo)
     colnames(x) <- paste0("pfc_", colnames(x))
@@ -615,7 +628,7 @@ shape_data_glmnet <- function(pfcs,
   } else {
 
     expo <- ifelse(unlist(rate_dists) == "Brownian", 2, 1)
-    pfcs_expo <- purrr::map2(pfcs, expo, ~ .x^.y)
+    pfcs_expo <- purrr::map2(new_pfcs, expo, ~ .x^.y)
     mats <- purrr::imap(pfcs_expo,
                        ~ {x <- phyf::pf_as_sparse(.x) ;
                          colnames(x) <- paste("pfc", colnames(x), .y, sep = "_");
@@ -626,8 +639,8 @@ shape_data_glmnet <- function(pfcs,
 
   }
 
-  x <- cbind(Matrix::Matrix(as.matrix(predictors)), x)
-  pfact <- c(rep(0, ncol(predictors)), pfact)
+  x <- cbind(Matrix::Matrix(as.matrix(new_preds)), x)
+  pfact <- c(rep(0, ncol(new_preds)), pfact)
 
   list(dat = x, y = y, penalty_factor = pfact, renamer = NULL)
 
@@ -636,7 +649,14 @@ shape_data_glmnet <- function(pfcs,
 fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
                                      labels, alpha = 1,
                                      to_predict, engine,
-                                     rate_dists) {
+                                     rate_dists,
+                                     pfcs,
+                                     verbose,
+                                     ncores,
+                                     what = c("phylosig",
+                                              "eff_noise"),
+                                     n_y = 1,
+                                     multi) {
 
   renamer <- fit$renamer
   renames <- renamer$new_names
@@ -645,10 +665,17 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
 
   fit <- fit$fit
 
-  metrics <- glmnet_metrics(fit, dat_list$dat, dat_list$y, penalty.factor = dat_list$penalty_factor,
-                            alpha = alpha)
+  phy <- phyf::pf_as_phylo(pfcs[[1]])
 
-  best_mod <- which.min(metrics$bic_l)
+  metrics <- glmnet_metrics(fit, dat_list$dat, dat_list$y, phy,
+                            penalty.factor = dat_list$penalty_factor,
+                            alpha = alpha,
+                            verbose = verbose,
+                            ncores = ncores,
+                            what = what,
+                            n_y = n_y)
+
+  best_mod <- metrics$phylosig_best
   best_lam <- fit$lambda[best_mod]
 
   # if(alpha > 0) {
@@ -661,7 +688,7 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
 
   new_fit <- fibre_process_fit_glmnet_lambda(fit, best_lam, best_mod, blueprint,
                                              to_predict, labels, metrics, engine,
-                                             rate_dists, dat_list)
+                                             rate_dists, dat_list, multi)
 
   return(new_fit)
 
@@ -670,7 +697,7 @@ fibre_process_fit_glmnet <- function(fit, blueprint, dat_list,
 
 fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                                             to_predict, labels, metrics, engine,
-                                            rate_dists, dat_list) {
+                                            rate_dists, dat_list, multi) {
 
 
   coefs <- coef(fit, s = lambda)
@@ -696,24 +723,30 @@ fibre_process_fit_glmnet_lambda <- function(fit, lambda, best_mod, blueprint,
                             value = c(metrics$sigma[best_mod],
                                       lambda, metrics$rate_est[best_mod]))
 
-  predict_dat <- shape_data_glmnet(to_predict$pfcs, to_predict$predictors, rate_dists = rate_dists)
-  preds <- predict(fit, predict_dat$dat, s = lambda)[ , , 1]
+  predict_dat <- shape_data_glmnet(to_predict$pfcs, to_predict$predictors, multi = multi, to_predict$outcomes, rate_dists = rate_dists)
+  preds <- predict(fit, predict_dat$dat, s = lambda)
+  if(!multi) {
+    preds <- preds[ , , 1]
+  }
   params <- rownames(preds)
   pred <- as.data.frame(preds)
-  colnames(pred) <- paste0(".pred_", colnames(pred))
+  if(multi) {
+    colnames(preds) <- ".pred_y"
+  } else {
+    colnames(pred) <- paste0(".pred_", colnames(pred))
+  }
 
-
-  preds <- purrr::map(to_predict$pfcs,
-                      phyf::pf_labels) %>%
-    dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(...,
-                                                          repair = "unique",
-                                                          quiet = TRUE)) %>%
-    dplyr::bind_cols(to_predict$predictors,
-                     .name_repair = ~ vctrs::vec_as_names(...,
-                                                          repair = "unique",
-                                                          quiet = TRUE)) %>%
-    tidyr::unite(label, dplyr::everything()) %>%
-    dplyr::bind_cols(pred)
+  # preds <- purrr::map(to_predict$pfcs,
+  #                     phyf::pf_labels) %>%
+  #   dplyr::bind_cols(.name_repair = ~ vctrs::vec_as_names(...,
+  #                                                         repair = "unique",
+  #                                                         quiet = TRUE)) %>%
+  #   dplyr::bind_cols(to_predict$predictors,
+  #                    .name_repair = ~ vctrs::vec_as_names(...,
+  #                                                         repair = "unique",
+  #                                                         quiet = TRUE)) %>%
+  #   tidyr::unite(label, dplyr::everything()) %>%
+  #   dplyr::bind_cols(pred)
 
   new_fibre(
     fixed = as.data.frame(fixed_df),
