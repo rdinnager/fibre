@@ -6,6 +6,7 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/rdinnager/fibre/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/rdinnager/fibre/actions/workflows/R-CMD-check.yaml)
+[![DOI](https://zenodo.org/badge/316467300.svg)](https://zenodo.org/badge/latestdoi/316467300)
 <!-- badges: end -->
 
 The goal of fibre is to …
