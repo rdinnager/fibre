@@ -250,7 +250,9 @@ sdf_net <- torch::nn_module("sdf_net",
 
                             get_voxels = function(latent_code,
                                                   resolution = 100,
-                                                  sphere_only = TRUE) {
+                                                  sphere_only = TRUE,
+                                                  batch_size = 50000,
+                                                  cuda = TRUE) {
 
                               sequ <- seq(-1.1, 1.1, length.out = resolution)
                               ind <- seq_len(resolution)
@@ -263,9 +265,11 @@ sdf_net <- torch::nn_module("sdf_net",
                                 indices <- indices[mask, ]
                               }
 
-                              pts2 <- torch::torch_tensor(as.matrix(pts))
-                              latent_codes <- latent_code$`repeat`(c(pts2$shape[1L], 1L))
-                              sdf <- self$forward(pts2, latent_codes)
+                              pts2 <- torch::torch_tensor(as.matrix(pts), device = latent_code$device)
+                              #latent_codes <- latent_code$`repeat`(c(pts2$shape[1L], 1L))
+                              sdf <- self$evaluate_in_batches(pts2, latent_code,
+                                                              batch_size = batch_size,
+                                                              cuda = cuda)
 
                               voxels <- array(1,
                                               dim = c(resolution,
@@ -279,12 +283,15 @@ sdf_net <- torch::nn_module("sdf_net",
                             },
 
                             get_mesh = function(latent_code, resolution = 100,
-                                                smooth = FALSE) {
+                                                smooth = FALSE,
+                                                batch_size = 50000,
+                                                cuda = TRUE) {
 
                               rlang::check_installed("rmarchingcubes")
                               rlang::check_installed("rgl")
 
-                              voxels <-self$get_voxels(latent_code, resolution = resolution)
+                              voxels <-self$get_voxels(latent_code, resolution = resolution,
+                                                       batch_size = batch_size, cuda = cuda)
                               mesh <- rmarchingcubes::contour3d(voxels$voxels,
                                                                 0,
                                                                 x = voxels$x,

@@ -102,7 +102,7 @@ get_shadows <- function(sdf_net, points, light_position, latent_code = NULL, thr
 
 }
 
-render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_position, light_position, threshold = 0.0005, sdf_offset = 0, iterations = 1000, ssaa = 2, radius = 1.0, crop = FALSE, color = c(R = 246 / 255, G = 236 / 255, B = 133 / 255), vertical_cutoff = NULL, max_ray_move = 0.05, plot = TRUE, cuda = FALSE, batch_size = 50000, verbose = FALSE) {
+render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_position, light_position, threshold = 0.0005, sdf_offset = 0, iterations = 1000, ssaa = 2, radius = 1.0, crop = FALSE, color = c(R = 246 / 255, G = 236 / 255, B = 133 / 255), vertical_cutoff = NULL, max_ray_move = 0.02, plot = TRUE, cuda = FALSE, batch_size = 50000, verbose = FALSE, use_sil = FALSE) {
 
   rlang::check_installed("Morpho")
   rlang::check_installed("einsum")
@@ -131,22 +131,24 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
   #model_mask <- torch::torch_zeros(points$shape[1], dtype = torch::torch_uint8())
   model_mask <- integer(nrow(points))
 
-  if(verbose) {
-    message("calculating silhouette")
+  if(use_sil) {
+    if(verbose) {
+      message("calculating silhouette")
+    }
+    model_mask <- render_silhouette(sdf_net, latent_code = latent_code,
+                                    resolution = resolution,
+                                    camera_position = camera_position,
+                                    light_position = light_position,
+                                    threshold = threshold, iterations = iterations,
+                                    ssaa = ssaa, radius = radius, crop = crop, color = color,
+                                    vertical_cutoff = vertical_cutoff,
+                                    plot = FALSE, cuda = cuda,
+                                    batch_size = batch_size, verbose = FALSE,
+                                    return_type = "mask", setup = setup)
+    indices <- indices[indices %in% which(model_mask == 1)]
+  } else {
+    model_mask <- rep(0, nrow(points))
   }
-
-  model_mask <- render_silhouette(sdf_net, latent_code = latent_code,
-                                  resolution = resolution,
-                                  camera_position = camera_position,
-                                  light_position = light_position,
-                                  threshold = threshold, iterations = iterations,
-                                  ssaa = ssaa, radius = radius, crop = crop, color = color,
-                                  vertical_cutoff = vertical_cutoff,
-                                  plot = FALSE, cuda = cuda,
-                                  batch_size = batch_size, verbose = FALSE,
-                                  return_type = "mask", setup = setup)
-
-  indices <- indices[indices %in% which(model_mask == 1)]
 
   if(verbose) message("starting raymarching")
   for(i in seq_len(iterations)) {
@@ -162,7 +164,9 @@ render_image <- function(sdf_net, latent_code = NULL, resolution = 800, camera_p
 
     #hits = abs(sdf) < threshold
     hits = sdf >= 0 & sdf < threshold
-    #model_mask[indices[hits]] <- 1
+    if(!use_sil) {
+      model_mask[indices[hits]] <- 1
+    }
     indices = indices[!hits]
 
     misses <- as.vector(as.matrix(((torch::torch_norm(torch::torch_tensor(points[indices, , drop = FALSE], dtype = torch::torch_float32()),

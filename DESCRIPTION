@@ -42,7 +42,8 @@ Suggests:
     imager,
     movMF,
     furrr,
-    ggridges
+    ggridges,
+    ggforce
 VignetteBuilder: knitr
 Imports: 
     ape,
