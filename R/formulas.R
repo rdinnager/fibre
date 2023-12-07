@@ -113,12 +113,17 @@ bre_brownian <- function(phyf,
 
   if(is.null(label)) label <- rlang::expr_name(substitute(phyf))
 
+  if(standardise) {
+    standard <- mean(phyf::pf_flow_sum(phyf))
+    phyf <- phyf / standard
+  }
+
   bre(phyf = sqrt(phyf),
       rate_distribution = "Brownian",
       hyper = hyper,
       latent = latent,
       label = label,
-      standardise = standardise)
+      standardise = FALSE)
 
 }
 
