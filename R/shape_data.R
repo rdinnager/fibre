@@ -64,9 +64,10 @@ shape_data_preprocess <- function(outcomes, pfcs, predictors, multilik, multi) {
 }
 
 shape_data_inla <- function(pfcs, predictors,
+                            multi = TRUE,
                             outcomes, latents, multilik = FALSE) {
 
-  c(new_y, new_preds, new_pfcs, orig_col_nums, orig_row_nums, ynames) %<-% shape_data_preprocess(outcomes, pfcs, predictors, multilik, multi = TRUE)
+  c(new_y, new_preds, new_pfcs, orig_col_nums, orig_row_nums, ynames) %<-% shape_data_preprocess(outcomes, pfcs, predictors, multilik, multi = multi)
 
   dat_pred <- purrr::imap(new_preds,
                           compress_data)

@@ -1,0 +1,80 @@
+---
+title: "Getting Started with fibre"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with fibre}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(fibre)
+library(geiger)
+library(phytools)
+```
+
+`fibre` models traits on phylogenies. It can be used for two main purposes. One, is to estimate the history of a trait across a phylogeny, it's rates of evolution, and how those rates change. As such, it can be used to explore or test hypotheses about how a trait had evolved. Two, it can be used to 'account' for phylogeny in a flexible way, in an analysis aimed at answering a separate question, such as how are two traits related to each other, independent of phylogeny? In other words, we can condition on phylogeny in the case where we suspect the phylogeny is a confounder of other traits whose potential causal relationship we are interested in. Having a flexible evolutionary model is beneficial in both instances. We will show how `fibre` works sing simulated data. We will start with the simple case where the data follow a simple evolutionary model, a Brownian motion or Orlenstein Uhlenbeck (OU) model, to compare how the flexible `fibre` model deals with the case where it is more flexible than required, and to compare it other methods, which often assume such simple models. That we we right off start be comparing `fibre` to alternatives where we have made sure those other method are being evaluated in the best case scenario for them.
+
+Let's simulate some simple data. We will simulate three traits which we will use in subsequent analyses. Two of the traits will be correlated with each other with a correlation coefficient of 0.5, and the third will be uncorrelated with the other two. We can do this easily with the `sim.char()` function in `geiger`
+
+```{r sim_dat}
+set.seed(230045)
+tree <- pbtree(n = 100, scale = 1, d = 0.2)
+## covariance matrix for the continuous characters to evolve, traits 1 and 2 are correlated
+vcv <- matrix(c(1.0, 0.5, 0.0,
+                0.5, 1.0, 0.0,
+                0.0, 0.0, 1.0),
+              ncol = 3, byrow = TRUE)
+
+traits <- sim.char(tree, vcv * 50, model = "BM", root = 0)[ , , 1]
+colnames(traits) <- paste0("tr_", 1:3)
+
+phenogram(tree, traits[ , 3])
+
+```
+
+Now there are a wide range of questions we can ask about these traits using `fibre`. We will start by just estimating the rates of evolution across the tree for one of the traits.
+
+```{r try_it}
+hyper <- list(prec = list(prior = "pc.prec", param = c(1, 0.95)))
+t3_mod <- fibre(tr_3 ~ p(tree, constr = FALSE, rate_order = "first"), data = traits,
+                control.compute = list(waic = TRUE))
+summary(t3_mod)
+
+fitC <- fitContinuous(tree, traits[ , 3], model="BM", control=list(niter=10), ncores=2)
+fitC
+```
+
+```{r prior}
+brownian_prior <- prior_brownian(tree, traits[, 3], "gaussian")
+hyper <- list(prec = list(prior = "pc.prec", param = c(brownian_prior, 0.5)))
+t3_mod2 <- fibre(tr_3 ~ p(tree, constr = FALSE, rate_order = "second", hyper = hyper), data = traits)
+summary(t3_mod2)
+```
+
+
+```{r scale_and_plot}
+x <- scale(x) %>% apply(1, function(x) x) ## that last bit converts scaled matrix back to vector
+
+## save the simulated ancestral states
+aces_true <- x[(length(tree$tip.label) + 1L):length(x)]
+
+## now just get the simulated tip states for the model
+x <- x[1:length(tree$tip.label)]
+
+contMap(tree, x, anc.states = aces_true, method = "user")
+
+```
+
+```{r mod1}
+res <- fibre(x ~ root + p(tree))
+```
+
+

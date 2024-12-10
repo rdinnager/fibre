@@ -21,6 +21,7 @@ fibre(x, ...)
   engine_options = list(),
   ncores = NULL,
   verbose = 0,
+  fit = TRUE,
   ...
 )
 
@@ -32,6 +33,7 @@ fibre(x, ...)
   engine_options = list(),
   ncores = NULL,
   verbose = 0,
+  fit = TRUE,
   ...
 )
 
@@ -44,6 +46,7 @@ fibre(x, ...)
   engine_options = list(),
   ncores = NULL,
   verbose = 0,
+  fit = TRUE,
   ...
 )
 
@@ -55,6 +58,7 @@ fibre(x, ...)
   engine_options = list(),
   ncores = NULL,
   verbose = 0,
+  fit = TRUE,
   ...
 )
 }
@@ -76,6 +80,21 @@ specified as:
 \item A \strong{matrix} with 1 numeric column.
 \item A numeric \strong{vector}.
 }}
+
+\item{intercept}{A logical. Should an intercept be included in the model?}
+
+\item{engine}{A single character. The engine to use for fitting the model.}
+
+\item{engine_options}{A list of options to pass to the engine.}
+
+\item{ncores}{An integer. The number of cores to use for parallel processing.}
+
+\item{verbose}{An integer. The level of verbosity.}
+
+\item{fit}{A logical. Should the model be fit? If \code{FALSE}, the model is not fit
+and instead a list of data is returned that can be used to fit the model later.
+Useful for debugging or for fitting the model using a custom model design or
+currently unsupported engine.}
 
 \item{formula}{A formula specifying the outcome terms on the left-hand side,
 and the predictor terms on the right-hand side.}
